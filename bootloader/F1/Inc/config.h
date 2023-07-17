@@ -18,7 +18,11 @@
 
 	// Enable the internal pull-down on PB2 pin. By default, PB2
 	// is in FLOATING input mode.
-	#define PB2_PULLDOWN
+	#define USER_BTN
+
+	#define USER_BTN_CLOCK	RCC_APB2ENR_IOPBEN
+	#define USER_BTN_CFG	SET_BIT(GPIOB->CRL, GPIO_CRL_CNF2_1); CLEAR_BIT(GPIOB->ODR, GPIO_ODR_ODR2) // pull-down
+	#define USER_BTN_PRESS	(READ_BIT(GPIOB->IDR, GPIO_IDR_IDR2) == 1)
 
 #elif defined TARGET_GENERIC_F103_PC13
 	#define LED1_CLOCK		RCC_APB2ENR_IOPCEN
@@ -36,7 +40,12 @@
 	#define LED2_ON			//WRITE_REG(GPIOB->BSRR, GPIO_BSRR_BS1)
 	#define LED2_OFF		//WRITE_REG(GPIOB->BRR, GPIO_BRR_BR1)
 
-	//#define PB2_PULLDOWN
+	// button connected to PA4
+	#define USER_BTN
+
+	#define USER_BTN_CLOCK	RCC_APB2ENR_IOPAEN
+	#define USER_BTN_CFG	SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) // pull-up
+	#define USER_BTN_PRESS	(READ_BIT(GPIOA->IDR, GPIO_IDR_IDR4) == 0)
 
 #elif defined TARGET_GENERIC_F103_PD2
 	#define LED1_CLOCK		RCC_APB2ENR_IOPDEN
@@ -122,9 +131,9 @@
   #define LED1_CLOCK		(RCC->APB2ENR |= RCC_APB2ENR_IOPAEN)
 	#define LED1_BIT_0		(GPIOA->CRL &= ~GPIO_CRL_CNF2_0)
 	#define LED1_BIT_1		(GPIOA->CRL &= ~GPIO_CRL_CNF2_1)
-	#define LED1_MODE			(GPIOA->CRL |= GPIO_CRL_MODE2)
-	#define LED1_ON				(GPIOA->BSRR = GPIO_BSRR_BS2)
-	#define LED1_OFF			(GPIOA->BRR	= GPIO_BRR_BR2)
+	#define LED1_MODE		(GPIOA->CRL |= GPIO_CRL_MODE2)
+	#define LED1_ON			(GPIOA->BSRR = GPIO_BSRR_BS2)
+	#define LED1_OFF		(GPIOA->BRR	= GPIO_BRR_BR2)
   
   
 	#define DISC_CLOCK		RCC_APB2ENR_IOPDEN
@@ -136,6 +145,11 @@
   
 #else
 	#error "No config for this target"
+#endif
+
+#ifndef USER_BTN
+#define USER_BTN_CLOCK		0
+#define USER_BTN_PRESS		0
 #endif
 
 #ifndef LED1_CLOCK

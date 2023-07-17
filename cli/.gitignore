@@ -1,2 +1,4 @@
 *.o
-hid-flash
+hid-flash*
+.cproject
+.project

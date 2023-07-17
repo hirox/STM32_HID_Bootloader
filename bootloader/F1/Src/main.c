@@ -33,7 +33,7 @@
 #include "led.h"
 
 /* Bootloader size */
-#define BOOTLOADER_SIZE			(2 * 1024)
+#define BOOTLOADER_SIZE		(2 * 1024)
 
 /* SRAM size */
 #define SRAM_SIZE			(20 * 1024)
@@ -42,13 +42,13 @@
 #define SRAM_END			(SRAM_BASE + SRAM_SIZE)
 
 /* HID Bootloader takes 2 kb flash. */
-#define USER_PROGRAM			(FLASH_BASE + BOOTLOADER_SIZE)
+#define USER_PROGRAM		(FLASH_BASE + BOOTLOADER_SIZE)
 
 /* Initial stack pointer index in vector table*/
 #define INITIAL_MSP			0
 
 /* Reset handler index in vector table*/
-#define RESET_HANDLER			1
+#define RESET_HANDLER		1
 
 /* USB Low-Priority and CAN1 RX0 IRQ handler idnex in vector table */
 #define USB_LP_CAN1_RX0_IRQ_HANDLER	36
@@ -193,14 +193,14 @@ void Reset_Handler(void)
 		(funct_ptr) *(volatile uint32_t *) (USER_PROGRAM + 0x04);
 
 	/* If:
-	 *  - PB2 (BOOT 1 pin) is HIGH or
+	 *  - User button pressed or
 	 *  - no User Code is uploaded to the MCU or
 	 *  - a magic word was stored in the battery-backed RAM
 	 *    registers from the Arduino IDE
 	 * then enter HID bootloader...
 	 */
 	if ((magic_word == 0x424C) ||
-		READ_BIT(GPIOB->IDR, GPIO_IDR_IDR2) ||
+		USER_BTN_PRESS ||
 		(check_user_code(USER_PROGRAM) == false)) {
 		if (magic_word == 0x424C) {
 

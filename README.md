@@ -1,6 +1,18 @@
 STM32_HID_bootloader
 =============
 
+## About the Fork
+
+Add support user button to enter bootloader (currently only F1 series). To customize `button port / pin / pull-up / active_low_or_high` change settings in [bootloader/F1/Inc/config.h](bootloader/F1/Inc/config.h) 
+```CPP
+// button connected to PA4
+#define USER_BTN
+
+#define USER_BTN_CLOCK	RCC_APB2ENR_IOPAEN
+#define USER_BTN_CFG	SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) // pull-up
+#define USER_BTN_PRESS	(READ_BIT(GPIOA->IDR, GPIO_IDR_IDR4) == 0)
+```
+
 ## Notice
 
 This software is experimental and a work in progress. Under no circumstances should these files be used in relation to any critical system(s). Use of these files is at your own risk.

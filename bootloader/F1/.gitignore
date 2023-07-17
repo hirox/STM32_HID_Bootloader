@@ -4,3 +4,7 @@
 
 *.o
 *.bin
+/build/
+/bootloader_only_binaries/
+.cproject
+.project
