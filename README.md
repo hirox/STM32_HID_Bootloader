@@ -9,7 +9,9 @@ Add support user button to enter bootloader (currently only F1 series). To custo
 #define USER_BTN
 
 #define USER_BTN_CLOCK	RCC_APB2ENR_IOPAEN
-#define USER_BTN_CFG	CLEAR_BIT(GPIOA->CRL, GPIO_CRL_CNF4_0); SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) // pull-up
+#define USER_BTN_CFG	CLEAR_BIT(GPIOA->CRL, GPIO_CRL_CNF4_0); \
+						SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); \
+						SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) /* pull-up */
 #define USER_BTN_PRESS	(READ_BIT(GPIOA->IDR, GPIO_IDR_IDR4) == 0)
 ```
 ## Creating user application (STM32F103C8 example)
