@@ -9,8 +9,23 @@ Add support user button to enter bootloader (currently only F1 series). To custo
 #define USER_BTN
 
 #define USER_BTN_CLOCK	RCC_APB2ENR_IOPAEN
-#define USER_BTN_CFG	SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) // pull-up
+#define USER_BTN_CFG	CLEAR_BIT(GPIOA->CRL, GPIO_CRL_CNF4_0); SET_BIT(GPIOA->CRL, GPIO_CRL_CNF4_1); SET_BIT(GPIOA->ODR, GPIO_ODR_ODR4) // pull-up
 #define USER_BTN_PRESS	(READ_BIT(GPIOA->IDR, GPIO_IDR_IDR4) == 0)
+```
+## Creating user application (STM32F103C8 example)
+Few changes needed (bootloader size **2 KB** = 0x800):
+1. Linker script `.ld` - change flash start address and available size
+```
+FLASH (rx)  : ORIGIN = 0x08000800, LENGTH = 62K
+```
+2.  Relocate Vector Table in `system_stm32f10x.c`
+```CPP
+#define VECT_TAB_OFFSET  0x800
+```
+## Flash user application (use any free COM port number)
+```shell
+cd STM32_HID_Bootloader\cli
+hid-flash "user_app.bin" COM53
 ```
 
 ## Notice
