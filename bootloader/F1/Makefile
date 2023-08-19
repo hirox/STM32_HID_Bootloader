@@ -26,7 +26,7 @@ SRCS += $(C_SRCS)
 vpath %.c $(sort $(dir $(C_SRCS)))
 OBJS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SRCS:.c=.o)))
 
-CFLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os
+CFLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os -flto
 CFLAGS += -std=gnu99
 CFLAGS += -fno-common -static
 CFLAGS += -specs=nano.specs -specs=nosys.specs
@@ -210,7 +210,7 @@ size: $(BUILD_DIR)/$(TARGET).elf
 
 $(BUILD_DIR):
 	$(ECHO) "MKDIR   $@"
-	$(Q)$(MKDIR) $@
+	$(Q)$(MKDIR) -p $@
 
 $(BIN_DIR):
 	$(ECHO) "MKDIR   $@"
