@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   printf  ("|   Customized for STM32duino ecosystem   https://www.stm32duino.com    |\n");
   printf  ("+-----------------------------------------------------------------------+\n\n");
   
-  if(argc < 3) {
+  if(argc <= 1) {
     printf("Usage: hid-flash <bin_firmware_file> <comport> <delay (optional)>\n");
     return 1;
   }else if(argc == 4){
@@ -93,10 +93,12 @@ int main(int argc, char *argv[]) {
     return error;
   }
   
-  if(serial_init(argv[2], _timer) == 0){ //Setting up Serial port
-    RS232_CloseComport();
-  }else{
-    printf("> Unable to open the [%s]\n",argv[2]);
+  if (argc >= 3) {
+    if(serial_init(argv[2], _timer) == 0){ //Setting up Serial port
+      RS232_CloseComport();
+    }else{
+      printf("> Unable to open the [%s]\n",argv[2]);
+    }
   }
   
   hid_init();
@@ -213,18 +215,20 @@ exit:
   if(firmware_file) {
     fclose(firmware_file);
   }
-  
-  printf("> Searching for [%s] ...\n",argv[2]);
 
-  for(int i=0;i<5;i++){
-    if(RS232_OpenComport(argv[2]) == 0){
-      printf("> [%s] is found !\n",argv[2] );
-      break;
-    }
-    sleep(1);
+  if (argc >= 3) {
+    printf("> Searching for [%s] ...\n",argv[2]);
 
-    if(i==4){
-      printf("> Comport is not found\n");
+    for(int i=0;i<5;i++){
+      if(RS232_OpenComport(argv[2]) == 0){
+        printf("> [%s] is found !\n",argv[2] );
+        break;
+      }
+      sleep(1);
+
+      if(i==4){
+        printf("> Comport is not found\n");
+      }
     }
   }
   
