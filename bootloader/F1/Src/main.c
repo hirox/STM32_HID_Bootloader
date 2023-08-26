@@ -60,7 +60,7 @@ typedef void (*funct_ptr)(void);
 void Reset_Handler(void);
 
 /* Minimal initial Flash-based vector table */
-uint32_t *VectorTable[] __attribute__((section(".isr_vector"))) = {
+const uint32_t *VectorTable[] __attribute__((section(".isr_vector"), used)) = {
 
 	/* Initial stack pointer (MSP) */
 	(uint32_t *) SRAM_END,
@@ -80,12 +80,6 @@ static bool check_flash_complete(void)
 {
 	if (UploadFinished == true) {
 		return true;
-	}
-	if (UploadStarted == false) {
-		LED1_ON;
-		delay(200000L);
-		LED1_OFF;
-		delay(200000L);
 	}
 	return false;
 }
@@ -187,10 +181,7 @@ void Reset_Handler(void)
 	delay(72);
 	LED2_OFF;
 
-	UploadStarted = false;
 	UploadFinished = false;
-	funct_ptr UserProgram =
-		(funct_ptr) *(volatile uint32_t *) (USER_PROGRAM + 0x04);
 
 	/* If:
 	 *  - User button pressed or
@@ -242,6 +233,9 @@ void Reset_Handler(void)
 
 	/* Setup the stack pointer to the user-defined one */
 	__set_MSP((*(volatile uint32_t *) USER_PROGRAM));
+
+	funct_ptr UserProgram =
+		(funct_ptr) *(volatile uint32_t *) (USER_PROGRAM + 0x04);
 
 	/* Jump to the user firmware entry point */
 	UserProgram();

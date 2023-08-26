@@ -9,6 +9,7 @@ VECTOR_TABLE_OFFSET = 0x0000
 PAGE_SIZE = 1024 
 
 C_SRCS = Src/main.c Src/usb.c Src/hid.c Src/led.c Src/flash.c
+CXX_SRCS = Src/crypt.cc
 
 # Be silent per default, but 'make V=1' will show all compiler calls.
 # If you're insane, V=99 will print out all sorts of things.
@@ -22,22 +23,40 @@ INCLUDE_DIRS += -I Inc
 INCLUDE_DIRS += -I CMSIS/Device/ST/STM32F10x/Include 
 INCLUDE_DIRS += -I CMSIS/Include
 
-SRCS += $(C_SRCS)
+SRCS += $(C_SRCS) $(CXX_SRCS)
 vpath %.c $(sort $(dir $(C_SRCS)))
-OBJS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SRCS:.c=.o)))
+vpath %.cc $(sort $(dir $(CXX_SRCS)))
+OBJS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SRCS:.c=.c.o))) $(addprefix $(BUILD_DIR)/,$(notdir $(CXX_SRCS:.cc=.cc.o)))
 
-CFLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os -flto
-CFLAGS += -std=gnu99
-CFLAGS += -fno-common -static
-CFLAGS += -specs=nano.specs -specs=nosys.specs
-CFLAGS += -Wextra -Wshadow -Wno-unused-variable -Wimplicit-function-declaration
-CFLAGS += -Wredundant-decls -Wstrict-prototypes -Wmissing-prototypes
-CFLAGS += $(INCLUDE_DIRS)
-CFLAGS += -D$(DEVICE)
-CFLAGS += -DVECTOR_TABLE_OFFSET=$(VECTOR_TABLE_OFFSET)
-CFLAGS += -nostdlib
-CFLAGS += $(TARGETFLAGS)
-CFLAGS += -DPAGE_SIZE=$(PAGE_SIZE)
+FIRMWARE_KEY1 = 0x0123456789ABCDEF
+FIRMWARE_KEY2 = 0xFEDCBA9876543210
+-include key.mk
+
+COMMON_FLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os -flto
+COMMON_FLAGS += -fno-common -static
+COMMON_FLAGS += -specs=nano.specs -specs=nosys.specs
+COMMON_FLAGS += -Wextra -Wshadow -Wno-unused-variable
+COMMON_FLAGS += -Wredundant-decls
+COMMON_FLAGS += $(INCLUDE_DIRS)
+COMMON_FLAGS += -D$(DEVICE)
+COMMON_FLAGS += -DVECTOR_TABLE_OFFSET=$(VECTOR_TABLE_OFFSET)
+COMMON_FLAGS += -nostdlib
+COMMON_FLAGS += $(TARGETFLAGS)
+COMMON_FLAGS += -DPAGE_SIZE=$(PAGE_SIZE)
+COMMON_FLAGS += -DFIRMWARE_KEY1=$(FIRMWARE_KEY1)
+COMMON_FLAGS += -DFIRMWARE_KEY2=$(FIRMWARE_KEY2)
+COMMON_FLAGS += -ggdb
+
+CFLAGS = $(COMMON_FLAGS)
+CFLAGS += -std=gnu17
+CFLAGS += -Wimplicit-function-declaration
+CFLAGS += -Wstrict-prototypes -Wmissing-prototypes
+
+CXXFLAGS         = $(COMMON_FLAGS)
+CXXFLAGS        += -std=c++20 -fno-rtti -fno-exceptions -fno-use-cxa-atexit
+# Do not emit the extra code for thread-safe initialization of local statics
+CXXFLAGS        += -fno-threadsafe-statics
+
 
 LDFLAGS += -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref
 LDFLAGS += -Wl,--gc-sections
@@ -49,6 +68,7 @@ LDFLAGS += -T$(LINKER_SCRIPT)
 # Tool paths.
 PREFIX	?= arm-none-eabi-
 CC = $(PREFIX)gcc
+CXX = $(PREFIX)g++
 LD = $(PREFIX)ld
 OBJDUMP = $(PREFIX)objdump
 OBJCOPY = $(PREFIX)objcopy
@@ -181,9 +201,17 @@ $(BUILD_DIR)/$(TARGET).elf: $(OBJS)
 
 .SECONDARY: $(OBJS)
 
-$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/%.c.o: %.c Makefile | $(BUILD_DIR)
 	$(ECHO) "CC      $<"
 	$(Q)$(CC) $(CFLAGS) -c "$<" -o "$@"
+
+$(BUILD_DIR)/%.cc.o: %.cc Makefile | $(BUILD_DIR)
+	$(ECHO) "CXX      $<"
+	$(Q)$(CXX) $(CXXFLAGS) -c "$<" -o "$@"
+
+$(BUILD_DIR)/crypt.cc.o: crypt.cc Makefile | $(BUILD_DIR)
+	$(ECHO) "CXX      $<"
+	$(Q)$(CXX) $(CXXFLAGS) -c "$<" -o "$@"
 
 output: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
 

@@ -35,11 +35,10 @@ USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
 
 volatile uint8_t DeviceAddress;
 volatile uint16_t DeviceConfigured;
-const uint16_t DeviceStatus;
 
 void USB_PMA2Buffer(uint8_t endpoint)
 {
-	volatile uint32_t *btable = BTABLE_ADDR(endpoint);
+	volatile uint32_t *btable = BTABLE_ADDR_FROM_OFFSET(endpoint, 0);
 	uint32_t count = RxTxBuffer[endpoint].RXL = btable[USB_COUNTn_RX] & 0x3ff;
 	uint32_t *address = (uint32_t *) (PMAAddr + btable[USB_ADDRn_RX] * 2);
 	uint16_t *destination = (uint16_t *) RxTxBuffer[endpoint].RXB;
@@ -51,9 +50,13 @@ void USB_PMA2Buffer(uint8_t endpoint)
 
 void USB_Buffer2PMA(uint8_t endpoint)
 {
-	volatile uint32_t *btable = BTABLE_ADDR(endpoint);
-	uint32_t count = RxTxBuffer[endpoint].TXL <= RxTxBuffer[endpoint].MaxPacketSize ?
-		RxTxBuffer[endpoint].TXL : RxTxBuffer[endpoint].MaxPacketSize;
+	volatile uint32_t *btable = BTABLE_ADDR_FROM_OFFSET(endpoint, 0);
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
+	uint32_t count = RxTxBuffer[endpoint].TXL <= MAX_PACKET_SIZE ?
+		RxTxBuffer[endpoint].TXL : MAX_PACKET_SIZE;
+#else
+	uint32_t count = RxTxBuffer[endpoint].TXL;
+#endif
 	uint16_t *address = RxTxBuffer[endpoint].TXB;
 	uint32_t *destination = (uint32_t *) (PMAAddr + btable[USB_ADDRn_TX] * 2);
 
@@ -62,10 +65,13 @@ void USB_Buffer2PMA(uint8_t endpoint)
 	for (uint32_t i = (count + 1) / 2; i; i--) {
 		*destination++ = *address++;
 	}
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	RxTxBuffer[endpoint].TXL -= count;
 	RxTxBuffer[endpoint].TXB = address;
+#endif
 }
 
+// Maximum length is 64bytes
 void USB_SendData(uint8_t endpoint, uint16_t *data, uint16_t length)
 {
 	if (endpoint > 0 && !DeviceConfigured) {
@@ -79,7 +85,6 @@ void USB_SendData(uint8_t endpoint, uint16_t *data, uint16_t length)
 
 void USB_Shutdown(void)
 {
-
 	/* Disable USB IRQ */
 	NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
 	WRITE_REG(*ISTR, 0);
@@ -108,7 +113,10 @@ void USB_Init(void)
 	 * endpoints
 	 */
 	for (int i = 0; i < MAX_EP_NUM; i++) {
-		RxTxBuffer[i].RXL = RxTxBuffer[i].TXL = 0;
+		RxTxBuffer[i].RXL = 0;
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
+		RxTxBuffer[i].TXL = 0;
+#endif
 	}
 
 	/* PA12: General purpose Input Float */
@@ -158,7 +166,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 
 		/* Handle EP data */
 		if (READ_BIT(istr, ISTR_CTR)) {
-
 			/* Handle data on EP */
 			WRITE_REG(*ISTR, CLR_CTR);
 			USB_EPHandler(READ_REG(*ISTR));

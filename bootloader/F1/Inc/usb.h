@@ -25,12 +25,17 @@
 // Define here the max buffer size for your USB devices(s) endpoints
 #define MAX_BUFFER_SIZE 64
 
+/* Maximum packet size */
+#define MAX_PACKET_SIZE		64
+
+// TEXT size can be reduced if not needed
+//#define SUPPORT_OVER_64_BYTES_TRANSMISSION
+
 typedef struct {
 	uint16_t RXB[MAX_BUFFER_SIZE / 2];
 	uint16_t *TXB;
 	uint8_t RXL;
 	uint8_t TXL;
-	uint8_t MaxPacketSize;
 } USB_RxTxBuf_t;
 
 extern USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
@@ -275,9 +280,6 @@ enum EP_BUF_NUM
 /* SetDADDR */
 #define _SetDADDR(wRegValue) (*DADDR  = (uint16_t)wRegValue)
 
-/* SetBTABLE */
-#define _SetBTABLE(wRegValue)(*BTABLE = (uint16_t)(wRegValue & 0xFFF8))
-
 /*SetLPMCSR */
 #define _SetLPMCSR(wRegValue) (*LPMCSR = (uint16_t)wRegValue)
 
@@ -292,9 +294,6 @@ enum EP_BUF_NUM
 
 /* GetDADDR */
 #define _GetDADDR()  ((uint16_t) *DADDR)
-
-/* GetBTABLE */
-#define _GetBTABLE() ((uint16_t) *BTABLE)
 
 /*GetLPMCSR */
 #define _GetLPMCSR() ((uint16_t) *LPMCSR)
@@ -515,18 +514,12 @@ enum EP_BUF_NUM
 * Return         : None.
 *******************************************************************************/
 #define _GetEPAddress(bEpNum) ((uint8_t)(_GetENDPOINT(bEpNum) & EPADDR_FIELD))
-#if defined STM32F303xE || defined STM32F302x8
-#define _pEPTxAddr(bEpNum) ((uint16_t *)((_GetBTABLE()+bEpNum*8) + PMAAddr))
-#define _pEPTxCount(bEpNum) ((uint16_t *)((_GetBTABLE()+bEpNum*8+2) + PMAAddr))
-#define _pEPRxAddr(bEpNum) ((uint16_t *)((_GetBTABLE()+bEpNum*8+4) + PMAAddr))
-#define _pEPRxCount(bEpNum) ((uint16_t *)((_GetBTABLE()+bEpNum*8+6) + PMAAddr))
-
-#else
-#define _pEPTxAddr(bEpNum) ((volatile uint32_t *)((_GetBTABLE()+bEpNum*8  )*2 + PMAAddr))
-#define _pEPTxCount(bEpNum) ((volatile uint32_t *)((_GetBTABLE()+bEpNum*8+2)*2 + PMAAddr))
-#define _pEPRxAddr(bEpNum) ((volatile uint32_t *)((_GetBTABLE()+bEpNum*8+4)*2 + PMAAddr))
-#define _pEPRxCount(bEpNum) ((volatile uint32_t *)((_GetBTABLE()+bEpNum*8+6)*2 + PMAAddr))
-#endif
+// [MEMO] BTABLE is always zero in this project
+#define _pEPTxAddr(bEpNum) ((volatile uint32_t *)((bEpNum*8  )*2 + PMAAddr))
+#define _pEPTxCount(bEpNum) ((volatile uint32_t *)((bEpNum*8+2)*2 + PMAAddr))
+#define _pEPRxAddr(bEpNum) ((volatile uint32_t *)((bEpNum*8+4)*2 + PMAAddr))
+#define _pEPRxCount(bEpNum) ((volatile uint32_t *)((bEpNum*8+6)*2 + PMAAddr))
+#
 
 /*******************************************************************************
 * Macro Name     : SetEPTxAddr / SetEPRxAddr.
@@ -769,7 +762,6 @@ enum EP_BUF_NUM
 /* Global Variables */
 extern volatile uint8_t DeviceAddress;
 extern volatile uint16_t DeviceConfigured;
-extern const uint16_t DeviceStatus;
 
 /* Function Prototypes */
 void USB_PMA2Buffer(uint8_t EPn);

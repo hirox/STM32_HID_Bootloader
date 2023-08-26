@@ -20,7 +20,6 @@
 #define HID_H_
 
 /* Global Variables */
-extern volatile bool UploadStarted;
 extern volatile bool UploadFinished;
 
 /* Function Prototypes */

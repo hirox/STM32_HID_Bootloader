@@ -29,6 +29,7 @@
 #include "hid.h"
 #include "led.h"
 #include "flash.h"
+#include "crypt.h"
 
 /* This should be <= MAX_EP_NUM defined in usb.h */
 #define EP_NUM 			2
@@ -50,9 +51,6 @@
 #define MIN_PAGE		2
 #endif
 
-/* Maximum packet size */
-#define MAX_PACKET_SIZE		8
-
 /* Command size */
 #define COMMAND_SIZE		64
 
@@ -61,15 +59,12 @@
 
 /* EP0  */
 /* RX/TX buffer base address */
-#define ENDP0_RXADDR		(0x18)
-#define ENDP0_TXADDR		(0x58)
+#define ENDP0_RXADDR		(0x80)
+#define ENDP0_TXADDR		(0xC0)
 
 /* EP1  */
 /* TX buffer base address */
 #define ENDP1_TXADDR		(0x100)
-
-/* Upload started flag */
-volatile bool UploadStarted;
 
 /* Upload finished flag */
 volatile bool UploadFinished;
@@ -95,8 +90,8 @@ static const uint8_t USB_DeviceDescriptor[] = {
 	0x00,			// bDeviceSubClass
 	0x00,			// bDeviceProtocol
 	MAX_PACKET_SIZE,	// bMaxPacketSize0 8
-	0x09, 0x12,		// idVendor 0x1209
-	0xBA, 0xBE,		// idProduct 0xBEBA
+	0xC0, 0x16,		// idVendor 0x16C0
+	0xDC, 0x05,		// idProduct 0x5DC
 	0x00, 0x03,		// bcdDevice 3.00
 	0x01,			// iManufacturer (String Index)
 	0x02,			// iProduct (String Index)
@@ -119,7 +114,7 @@ static const uint8_t USB_ConfigurationDescriptor[] = {
 	0x00,			// bInterfaceNumber 0
 	0x00,			// bAlternateSetting
 	0x01,			// bNumEndpoints 1
-	0x03,			// bInterfaceClass
+	0x03,			// bInterfaceClass (HID)
 	0x00,			// bInterfaceSubClass
 	0x00,			// bInterfaceProtocol
 	0x00,			// iInterface (String Index)
@@ -140,7 +135,7 @@ static const uint8_t USB_ConfigurationDescriptor[] = {
 	0x05 			// bInterval 5 (2^(5-1)=16 micro-frames)
 };
 
-static const uint8_t USB_ReportDescriptor[32] = {
+static const uint8_t USB_ReportDescriptor[] = {
 	0x06, 0x00, 0xFF,	// Usage Page (Vendor Defined 0xFF00)
 	0x09, 0x01,		// Usage (0x01)
 	0xA1, 0x01,		// Collection (Application)
@@ -151,8 +146,6 @@ static const uint8_t USB_ReportDescriptor[32] = {
 	0x95, 0x08,		// 	Report Count (8)
 	0x81, 0x02,		// 	Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
 	0x09, 0x03,		// 	Usage (0x03)
-	0x15, 0x00,		// 	Logical Minimum (0)
-	0x25, 0xFF,		// 	Logical Maximum (255)
 	0x75, 0x08,		// 	Report Size (8)
 	0x95, 0x40,		// 	Report Count (64)
 	0x91, 0x02,		// 	Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
@@ -167,18 +160,17 @@ static const uint8_t USB_LangIDStringDescriptor[] = {
 };
 
 static const uint8_t USB_VendorStringDescriptor[] = {
-	0x22,			// bLength
+	0x12,			// bLength
 	0x03,			// bDescriptorType (String)
-	'w', 0, 'w', 0, 'w', 0, '.', 0, 's', 0, 'e', 0, 'r', 0, 'a', 0, 's', 0,
-	'i', 0, 'd', 0, 'i', 0, 's', 0, '.', 0, 'g', 0, 'r', 0
+	'E', 0, 'V', 0, 'T', 0, '1', 0, '.', 0, 'C', 0, 'O', 0, 'M', 0
 };
 
 static const uint8_t USB_ProductStringDescriptor[] = {
-	0x2C,			// bLength
+	0x28,			// bLength
 	0x03,			// bDescriptorType (String)
-	'S', 0, 'T', 0, 'M', 0, '3', 0, '2', 0, 'F', 0, ' ', 0, 'H', 0, 'I', 0,
-	'D', 0, ' ', 0, 'B', 0, 'o', 0, 'o', 0, 't', 0, 'l', 0, 'o', 0, 'a', 0,
-	'd', 0, 'e', 0, 'r', 0
+	'A', 0, 'l', 0, 't', 0, '-', 0, 'L', 0, 'i', 0, 'n', 0, 'k', 0,
+	' ', 0,	'B', 0, 'o', 0, 'o', 0, 't', 0, 'l', 0, 'o', 0, 'a', 0,
+	'd', 0, 'e', 0,	'r', 0
 };
 
 static void HIDUSB_GetDescriptor(USB_SetupPacket *setup_packet)
@@ -250,6 +242,8 @@ static uint8_t HIDUSB_PacketIsCommand(void)
 	return PageData[sizeof (Command) - 1];
 }
 
+static uint64_t extended_key[2 * ROUNDS];
+
 static void HIDUSB_HandleData(uint8_t *data)
 {
 	uint16_t *page_address;
@@ -258,44 +252,45 @@ static void HIDUSB_HandleData(uint8_t *data)
 	CurrentPageOffset += MAX_PACKET_SIZE;
 	if (CurrentPageOffset == COMMAND_SIZE) {
 		switch (HIDUSB_PacketIsCommand()) {
+			case 0x00:
+				/* Reset Page Command */
+				CurrentPage = MIN_PAGE;
+				CurrentPageOffset = 0;
 
-		case 0x00:
-
-			/* Reset Page Command */
-			UploadStarted = true;
-			CurrentPage = MIN_PAGE;
-			CurrentPageOffset = 0;
-		break;
-
-		case 0x01:
-
-			/* Reboot MCU Command */
-			UploadFinished = true;
-		break;
-
-		default:
+#if FIRMWARE_KEY1 == 0x0123456789ABCDEF
+#warning Using default firmware key (0x0123456789ABCDEF). Please consider to use your own key for security
+#endif
+				static const uint64_t key[2] = {
+					FIRMWARE_KEY1, FIRMWARE_KEY2
+				};
+				extend_key(extended_key, key);
 			break;
+
+			case 0x01:
+				/* Reboot MCU Command */
+				UploadFinished = true;
+			break;
+
+			default:
+				break;
 		}
 	} else if (CurrentPageOffset >= PAGE_SIZE) {
-		LED1_ON;
-		page_address = (uint16_t * ) (FLASH_BASE_ADDRESS +
-			(CurrentPage * PAGE_SIZE));
-		FLASH_WritePage(page_address, (uint16_t *) PageData,
-			PAGE_SIZE / 2);
+		decrypt(PageData, PageData, CurrentPageOffset, extended_key);
+		//LED1_ON;
+		page_address = (uint16_t *)(FLASH_BASE_ADDRESS + (CurrentPage * PAGE_SIZE));
+		FLASH_WritePage(page_address, (uint16_t *) PageData, PAGE_SIZE / 2);
 		CurrentPage++;
 		CurrentPageOffset = 0;
-		LED1_OFF;
+		//LED1_OFF;
 	}
-  
-  if((CurrentPageOffset == 0)||(CurrentPageOffset == 1024)){
-    USB_SendData(ENDP1, (uint16_t *) Command,
-			sizeof (Command));
-  }
+
+	if((CurrentPageOffset == 0) || (CurrentPageOffset == 1024)){
+		USB_SendData(ENDP1, (uint16_t *)Command, sizeof (Command));
+	}
 }
 
 void USB_Reset(void)
 {
-
 	/* Initialize Flash Page Settings */
 	CurrentPage = MIN_PAGE;
 	CurrentPageOffset = 0;
@@ -314,7 +309,9 @@ void USB_Reset(void)
 
 	/* Set reception buffer address for endpoint 0 in buffer descriptor table */
 	BTABLE_ADDR_FROM_OFFSET(ENDP0, BTABLE_OFFSET)[USB_ADDRn_RX] = ENDP0_RXADDR;
-	RxTxBuffer[0].MaxPacketSize = MAX_PACKET_SIZE;
+
+	/* BLSIZE=1, NUM_BLOCK=1 */
+	BTABLE_ADDR_FROM_OFFSET(ENDP0, BTABLE_OFFSET)[USB_COUNTn_RX] = 0x8400;
 
 	/* Initialize Endpoint 1 */
 	TOGGLE_REG(EP0REG[ENDP1],
@@ -327,7 +324,6 @@ void USB_Reset(void)
 
 	/* Set transmission byte count for endpoint 1 in buffer descriptor table */
 	BTABLE_ADDR_FROM_OFFSET(ENDP1, BTABLE_OFFSET)[USB_COUNTn_TX] = MAX_PACKET_SIZE;
-	RxTxBuffer[1].MaxPacketSize = MAX_PACKET_SIZE;
 
 	/* Clear device address and enable USB function */
 	WRITE_REG(*DADDR, DADDR_EF | 0);
@@ -341,10 +337,9 @@ void USB_EPHandler(uint16_t status)
 
 	/* OUT and SETUP packets (data reception) */
 	if (READ_BIT(endpoint_status, EP_CTR_RX)) {
-
-		/* Copy from packet area to user buffer */
-		USB_PMA2Buffer(endpoint);
 		if (endpoint == 0) {
+			/* Copy from packet area to user buffer */
+			USB_PMA2Buffer(endpoint);
 
 			/* If control endpoint */
 			if (READ_BIT(endpoint_status, USB_EP0R_SETUP)) {
@@ -361,7 +356,10 @@ void USB_EPHandler(uint16_t status)
 					break;
 
 				case USB_REQUEST_GET_STATUS:
-					USB_SendData(0, (uint16_t *) &DeviceStatus, 2);
+					{
+						uint16_t DeviceStatus = 0;
+						USB_SendData(0, (uint16_t *) &DeviceStatus, 2);
+					}
 					break;
 
 				case USB_REQUEST_GET_CONFIGURATION:
@@ -383,7 +381,6 @@ void USB_EPHandler(uint16_t status)
 					break;
 				}
 			} else if (RxTxBuffer[endpoint].RXL) {
-
 				/* OUT packet */
 				HIDUSB_HandleData((uint8_t *) RxTxBuffer[endpoint].RXB);
 			}
@@ -400,7 +397,9 @@ void USB_EPHandler(uint16_t status)
 			WRITE_REG(*DADDR, DADDR_EF | DeviceAddress);
 			DeviceAddress = 0;
 		}
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 		USB_Buffer2PMA(endpoint);
+#endif
 		SET_TX_STATUS(endpoint, (endpoint == ENDP1) ? EP_TX_NAK : EP_TX_VALID);
 	}
 }
