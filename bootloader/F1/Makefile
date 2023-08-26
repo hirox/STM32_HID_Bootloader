@@ -91,6 +91,7 @@ program: $(BUILD_DIR)/$(TARGET).hex
 all: $(SRCS) clean gccversion output info size
 
 maple-mini: $(SRCS) clean gccversion build_maple-mini copy_maple_mini info size
+alt-link: $(SRCS) clean gccversion build_alt-link copy_alt-link info size
 generic-pc13: $(SRCS) clean gccversion build_generic-pc13 copy_generic-pc13 info size
 generic-pd2: $(SRCS) clean gccversion build_generic-pd2 copy_generic-pd2 info size
 generic-pd1: $(SRCS) clean gccversion build_generic-pd1 copy_generic-pd1 info size
@@ -110,6 +111,13 @@ build_maple-mini: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).bin
 copy_maple_mini: $(BIN_DIR)
 	$(ECHO) "COPY    $(BIN_DIR)/hid_maple_mini.bin"
 	$(Q)$(CP) $(BUILD_DIR)/$(TARGET).bin $(BIN_DIR)/hid_maple_mini.bin
+
+build_alt-link: TARGETFLAGS= -DTARGET_ALT_LINK
+build_alt-link: LINKER_SCRIPT=STM32F103C8T6.ld
+build_alt-link: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).bin
+copy_alt-link: $(BIN_DIR)
+	$(ECHO) "COPY    $(BIN_DIR)/hid_alt-link.bin"
+	$(Q)$(CP) $(BUILD_DIR)/$(TARGET).bin $(BIN_DIR)/hid_alt-link.bin
 
 build_generic-pc13: TARGETFLAGS= -DTARGET_GENERIC_F103_PC13
 build_generic-pc13: LINKER_SCRIPT=STM32F103C8T6.ld
