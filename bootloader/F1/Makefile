@@ -223,10 +223,6 @@ $(BUILD_DIR)/%.cc.o: %.cc Makefile | $(BUILD_DIR)
 	$(ECHO) "CXX      $<"
 	$(Q)$(CXX) $(CXXFLAGS) -c "$<" -o "$@"
 
-$(BUILD_DIR)/crypt.cc.o: crypt.cc Makefile | $(BUILD_DIR)
-	$(ECHO) "CXX      $<"
-	$(Q)$(CXX) $(CXXFLAGS) -c "$<" -o "$@"
-
 output: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
 
 $(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf
