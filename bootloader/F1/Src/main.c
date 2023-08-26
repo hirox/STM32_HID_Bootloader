@@ -206,7 +206,7 @@ void Reset_Handler(void)
 		}
 		USB_Init();
 		while (check_flash_complete() == false) {
-			delay(400L);
+			FlashPage();
 		};
 
 		/* Reset the USB */

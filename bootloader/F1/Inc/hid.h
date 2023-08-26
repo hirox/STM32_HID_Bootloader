@@ -26,4 +26,6 @@ extern volatile bool UploadFinished;
 void USB_Reset(void);
 void USB_EPHandler(uint16_t Status);
 
+void FlashPage(void);
+
 #endif /* HID_H_ */
