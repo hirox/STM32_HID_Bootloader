@@ -182,6 +182,7 @@ void Reset_Handler(void)
 	LED2_OFF;
 
 	UploadFinished = false;
+	InitFlashVariables();
 
 	/* If:
 	 *  - User button pressed or

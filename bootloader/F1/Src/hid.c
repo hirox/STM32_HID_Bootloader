@@ -69,8 +69,6 @@
 /* Upload finished flag */
 volatile bool UploadFinished;
 
-volatile bool FlashPageInThreadContext = false;
-
 /* Sent command (Received command is the same minus last byte) */
 static const uint8_t Command[] = {'B', 'T', 'L', 'D', 'C', 'M', 'D', 2};
 
@@ -257,8 +255,8 @@ static void HIDUSB_HandleData(uint8_t *data)
 		switch (HIDUSB_PacketIsCommand(data)) {
 			case 0x00:
 				/* Reset Page Command */
-				CurrentPage = MIN_PAGE;
-				CurrentWritePage = MIN_PAGE;
+				CurrentPage = 0;
+				CurrentWritePage = 0;
 				CurrentPageOffset = 0;
 
 #if FIRMWARE_KEY1 == 0x0123456789ABCDEF
@@ -289,15 +287,14 @@ static void HIDUSB_HandleData(uint8_t *data)
 }
 
 void FlashPage() {
-	uint16_t *page_address;
-
 	if (CurrentPage <= CurrentWritePage) return;
 
-	uint8_t* p = PageData + ((CurrentWritePage & 1) ? PAGE_SIZE : 0);
+	uint8_t* p = PageData;
+	if ((CurrentWritePage & 0x01) != 0) p += PAGE_SIZE;
 	decrypt(p, p, PAGE_SIZE, extended_key);
 	//LED1_ON;
-	page_address = (uint16_t *)(FLASH_BASE_ADDRESS + (CurrentWritePage * PAGE_SIZE));
-	FLASH_WritePage(page_address, (uint16_t *) PageData, PAGE_SIZE / 2);
+	uint16_t* page_address = (uint16_t *)(FLASH_BASE_ADDRESS + MIN_PAGE * PAGE_SIZE + (CurrentWritePage * PAGE_SIZE));
+	FLASH_WritePage(page_address, (uint16_t *)p, PAGE_SIZE / 2);
 	CurrentWritePage++;
 	//LED1_OFF;
 
@@ -306,13 +303,15 @@ void FlashPage() {
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 }
 
+void InitFlashVariables() {
+	/* Initialize Flash Page Settings */
+	CurrentPage = 0;
+	CurrentWritePage = 0;
+	CurrentPageOffset = 0;
+}
+
 void USB_Reset(void)
 {
-	/* Initialize Flash Page Settings */
-	CurrentPage = MIN_PAGE;
-	CurrentWritePage = MIN_PAGE;
-	CurrentPageOffset = 0;
-
 	/* Set buffer descriptor table offset in PMA memory */
 	WRITE_REG(*BTABLE, BTABLE_OFFSET);
 

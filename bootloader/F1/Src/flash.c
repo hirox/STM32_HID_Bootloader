@@ -22,9 +22,8 @@
 #include <stm32f10x.h>
 #include "flash.h"
 
-void FLASH_WritePage(uint16_t *page, uint16_t *data, uint16_t size)
+void FLASH_WritePage(uint16_t *page, const uint16_t *data, uint16_t size)
 {
-
 	/* Unlock Flash with magic keys */
 	WRITE_REG(FLASH->KEYR, FLASH_KEY1);
 	WRITE_REG(FLASH->KEYR, FLASH_KEY2);
@@ -39,7 +38,11 @@ void FLASH_WritePage(uint16_t *page, uint16_t *data, uint16_t size)
 	while (READ_BIT(FLASH->SR, FLASH_SR_BSY)) {
 		;
 	}
-	CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
+
+	// [MEMO] Some device need to time to clear PER. Some __NOP()s also work
+	while (READ_BIT(FLASH->CR, FLASH_CR_PER)) {
+		CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
+	}
 
 	/* Write page data */
 	while (READ_BIT(FLASH->SR, FLASH_SR_BSY)) {
