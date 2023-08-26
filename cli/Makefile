@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-c -Wall
+CFLAGS=-ggdb -c -Wall -DDEBUG_PRINTF
 LDFLAGS=
 SOURCES=main.c
 INCLUDE_DIRS=-I .

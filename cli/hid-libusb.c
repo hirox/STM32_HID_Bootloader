@@ -782,6 +782,9 @@ static void read_callback(struct libusb_transfer *transfer)
   else if (transfer->status == LIBUSB_TRANSFER_TIMED_OUT) {
     //LOG("Timeout (normal)\n");
   }
+  else if (transfer->status == LIBUSB_TRANSFER_ERROR) {
+    LOG("Transfer error\n");
+  }
   else {
     LOG("Unknown transfer code: %d\n", transfer->status);
   }
@@ -904,7 +907,7 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
             /* OPEN HERE */
             res = libusb_open(usb_dev, &dev->device_handle);
             if (res < 0) {
-              LOG("can't open device\n");
+              LOG("can't open device. path: %s, ret: %d\n", path, res);
               free(dev_path);
               break;
             }

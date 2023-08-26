@@ -33,8 +33,8 @@
 #define HID_TX_SIZE    65
 #define HID_RX_SIZE     9
 
-#define VID           0x1209
-#define PID           0xBEBA
+#define VID           0x16C0
+#define PID           0x05DC
 #define FIRMWARE_VER  0x0300
 
 int serial_init(char *argument, uint8_t __timer);
@@ -70,7 +70,6 @@ int main(int argc, char *argv[]) {
   FILE *firmware_file = NULL;
   int error = 0;
   uint32_t n_bytes = 0;
-  int i;
   setbuf(stdout, NULL);
   uint8_t _timer = 0;
   
@@ -107,7 +106,7 @@ int main(int argc, char *argv[]) {
   struct hid_device_info *devs, *cur_dev;
   uint8_t valid_hid_devices = 0;
   
-  for(i=0;i<10;i++){ //Try up to 10 times to open the HID device.
+  for(int i=0;i<10;i++){ //Try up to 10 times to open the HID device.
     devs = hid_enumerate(VID, PID);
     cur_dev = devs;
     while (cur_dev) { //Search for valid HID Bootloader USB devices
@@ -133,13 +132,13 @@ int main(int argc, char *argv[]) {
   
   handle = hid_open(VID, PID, NULL);
   
-  if (i == 10 && handle != NULL) {
+  if (handle == NULL) {
     printf("\n> Unable to open the [%04X:%04X] device.\n",VID,PID);
     error = 1;
     goto exit;
   }
  
-  printf("\n> [%04X:%04X] device is found !\n",VID,PID);
+  printf("\n> Opened device [%04X:%04X]\n",VID,PID);
   
   // Send RESET PAGES command to put HID bootloader in initial stage...
   memset(hid_tx_buf, 0, sizeof(hid_tx_buf)); //Fill the hid_tx_buf with zeros.
@@ -223,11 +222,12 @@ exit:
       break;
     }
     sleep(1);
+
+    if(i==4){
+      printf("> Comport is not found\n");
+    }
   }
   
-  if(i==5){
-    printf("> Comport is not found\n");
-  }
   printf("> Finish\n");
   
   return error;
