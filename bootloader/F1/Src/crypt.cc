@@ -1,8 +1,29 @@
 
 #include <cstdint>
+#include <cstdio>
 #include <bit>
 
 #include "crypt.h"
+
+static void dump_plain(const std::uint64_t* in, const std::uint64_t extended_key[2 * ROUNDS]) {
+    printf("Key: ");
+    for (auto x = 0; x < 2 * ROUNDS; x++) {
+        printf("0x%08llx ", extended_key[x]);
+    }
+    printf("\nPlain: ");
+    for (auto x = 0; x < 10; x++) {
+        printf("0x%08llx ", in[x]);
+    }
+    printf("\n");
+}
+
+static void dump_crypt(std::uint64_t* out) {
+    printf("Crypt: ");
+    for (auto x = 0; x < 10; x++) {
+        printf("0x%08llx ", out[x]);
+    }
+    printf("\n");
+}
 
 static void speck128_round(std::uint64_t* x, std::uint64_t* y, std::uint64_t k) {
     *x = std::rotr(*x, 8);
@@ -64,21 +85,29 @@ void extend_key(std::uint64_t kb[2 * ROUNDS],
 
 void encrypt(std::uint8_t* out, const std::uint8_t* in,
              const std::uint32_t bytes, const std::uint64_t extended_key[2 * ROUNDS]) {
+#if 0
+    dump_plain(reinterpret_cast<const std::uint64_t*>(in), extended_key);
+#endif
+
     std::uint32_t count = bytes / 8;
 	std::uint32_t i = 0;
-	while (i >= count) {
+	while (i < count) {
         encrypt_internal(reinterpret_cast<std::uint64_t*>(out) + i,
                          reinterpret_cast<const std::uint64_t*>(in) + i,
                          extended_key);
 		i += 2;
 	}
+
+#if 0
+    dump_crypt(reinterpret_cast<std::uint64_t*>(out));
+#endif
 }
 
 void decrypt(std::uint8_t* out, const std::uint8_t* in,
              const std::uint32_t bytes, const std::uint64_t extended_key[2 * ROUNDS]) {
     std::uint32_t count = bytes / 8;
 	std::uint32_t i = 0;
-	while (i >= count) {
+	while (i < count) {
         decrypt_internal(reinterpret_cast<std::uint64_t*>(out) + i,
                          reinterpret_cast<const std::uint64_t*>(in) + i,
                          extended_key);
