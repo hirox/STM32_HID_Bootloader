@@ -28,9 +28,15 @@ vpath %.c $(sort $(dir $(C_SRCS)))
 vpath %.cc $(sort $(dir $(CXX_SRCS)))
 OBJS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SRCS:.c=.c.o))) $(addprefix $(BUILD_DIR)/,$(notdir $(CXX_SRCS:.cc=.cc.o)))
 
+VID_HI  = 0x12
+VID_LOW = 0x09
+PID_HI  = 0xBE
+PID_LOW = 0xBA
+
 FIRMWARE_KEY1 = 0x0123456789ABCDEF
 FIRMWARE_KEY2 = 0xFEDCBA9876543210
--include key.mk
+
+-include configuration.mk
 
 COMMON_FLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os -flto
 COMMON_FLAGS += -fno-common -static
@@ -43,8 +49,8 @@ COMMON_FLAGS += -DVECTOR_TABLE_OFFSET=$(VECTOR_TABLE_OFFSET)
 COMMON_FLAGS += -nostdlib
 COMMON_FLAGS += $(TARGETFLAGS)
 COMMON_FLAGS += -DPAGE_SIZE=$(PAGE_SIZE)
-COMMON_FLAGS += -DFIRMWARE_KEY1=$(FIRMWARE_KEY1)
-COMMON_FLAGS += -DFIRMWARE_KEY2=$(FIRMWARE_KEY2)
+COMMON_FLAGS += -DFIRMWARE_KEY1=$(FIRMWARE_KEY1) -DFIRMWARE_KEY2=$(FIRMWARE_KEY2)
+COMMON_FLAGS += -DVID_HI=$(VID_HI) -DVID_LOW=$(VID_LOW) -DPID_HI=$(PID_HI) -DPID_LOW=$(PID_LOW)
 COMMON_FLAGS += -ggdb
 
 CFLAGS = $(COMMON_FLAGS)
