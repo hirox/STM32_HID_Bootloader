@@ -34,7 +34,6 @@
 typedef struct {
 	uint16_t RXB[MAX_BUFFER_SIZE / 2];
 	uint16_t *TXB;
-	uint8_t RXL;
 	uint8_t TXL;
 } USB_RxTxBuf_t;
 
@@ -764,7 +763,7 @@ extern volatile uint8_t DeviceAddress;
 extern volatile uint16_t DeviceConfigured;
 
 /* Function Prototypes */
-void USB_PMA2Buffer(uint8_t EPn);
+uint32_t USB_PMA2Buffer(uint8_t EPn);
 void USB_Buffer2PMA(uint8_t EPn);
 void USB_SendData(uint8_t EPn, uint16_t *Data, uint16_t Length);
 void USB_Shutdown(void);

@@ -339,7 +339,7 @@ void USB_EPHandler(uint16_t status)
 	if (READ_BIT(endpoint_status, EP_CTR_RX)) {
 		if (endpoint == 0) {
 			/* Copy from packet area to user buffer */
-			USB_PMA2Buffer(endpoint);
+			uint32_t rx_length = USB_PMA2Buffer(endpoint);
 
 			/* If control endpoint */
 			if (READ_BIT(endpoint_status, USB_EP0R_SETUP)) {
@@ -380,7 +380,7 @@ void USB_EPHandler(uint16_t status)
 					SET_TX_STATUS(ENDP0, EP_TX_STALL);
 					break;
 				}
-			} else if (RxTxBuffer[endpoint].RXL) {
+			} else if (rx_length) {
 				/* OUT packet */
 				HIDUSB_HandleData((uint8_t *) RxTxBuffer[endpoint].RXB);
 			}

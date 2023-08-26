@@ -36,16 +36,17 @@ USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
 volatile uint8_t DeviceAddress;
 volatile uint16_t DeviceConfigured;
 
-void USB_PMA2Buffer(uint8_t endpoint)
+uint32_t USB_PMA2Buffer(uint8_t endpoint)
 {
 	volatile uint32_t *btable = BTABLE_ADDR_FROM_OFFSET(endpoint, 0);
-	uint32_t count = RxTxBuffer[endpoint].RXL = btable[USB_COUNTn_RX] & 0x3ff;
+	uint32_t count = btable[USB_COUNTn_RX] & 0x3ff;
 	uint32_t *address = (uint32_t *) (PMAAddr + btable[USB_ADDRn_RX] * 2);
 	uint16_t *destination = (uint16_t *) RxTxBuffer[endpoint].RXB;
 
 	for (uint32_t i = 0; i < count; i++) {
 		*destination++ = *address++;
 	}
+	return count;
 }
 
 void USB_Buffer2PMA(uint8_t endpoint)
@@ -113,7 +114,6 @@ void USB_Init(void)
 	 * endpoints
 	 */
 	for (int i = 0; i < MAX_EP_NUM; i++) {
-		RxTxBuffer[i].RXL = 0;
 #if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 		RxTxBuffer[i].TXL = 0;
 #endif
