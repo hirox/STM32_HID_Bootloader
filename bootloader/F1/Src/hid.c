@@ -322,9 +322,6 @@ void USB_Reset(void)
 	/* Set transmission buffer address for endpoint 1 in buffer descriptor table */
 	BTABLE_ADDR_FROM_OFFSET(ENDP1, BTABLE_OFFSET)[USB_ADDRn_TX] = ENDP1_TXADDR;
 
-	/* Set transmission byte count for endpoint 1 in buffer descriptor table */
-	BTABLE_ADDR_FROM_OFFSET(ENDP1, BTABLE_OFFSET)[USB_COUNTn_TX] = MAX_PACKET_SIZE;
-
 	/* Clear device address and enable USB function */
 	WRITE_REG(*DADDR, DADDR_EF | 0);
 }
