@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: install arm toolchains
-      run: sudo apt install gcc-arm-none-eabi gdb-multiarch
+      run: sudo apt install gcc-arm-none-eabi gdb-multiarch libhidapi-dev
     - name: make bootloader
       run: |
         cd bootloader/F1
