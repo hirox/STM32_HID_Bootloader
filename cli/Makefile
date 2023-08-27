@@ -1,8 +1,32 @@
 CC=gcc
-CFLAGS=-ggdb -c -Wall -DDEBUG_PRINTF
-LDFLAGS=
+CXX=g++
+
+VID_HI  = 0x12
+VID_LOW = 0x09
+PID_HI  = 0xBE
+PID_LOW = 0xBA
+
+FIRMWARE_KEY1 = 0x0123456789ABCDEF
+FIRMWARE_KEY2 = 0xFEDCBA9876543210
+
+-include configuration.mk
+
+COMMON_FLAGS = -ggdb -c -Wall -DDEBUG_PRINTF
+COMMON_FLAGS += -DFIRMWARE_KEY1=$(FIRMWARE_KEY1) -DFIRMWARE_KEY2=$(FIRMWARE_KEY2)
+COMMON_FLAGS += -DVID_HI=$(VID_HI) -DVID_LOW=$(VID_LOW) -DPID_HI=$(PID_HI) -DPID_LOW=$(PID_LOW)
+
+CFLAGS = $(COMMON_FLAGS)
+CFLAGS += -std=gnu17
+
+CXXFLAGS = $(COMMON_FLAGS)
+CXXFLAGS += -std=c++20
+
+LDFLAGS=-lstdc++
 SOURCES=main.c
+CXX_SRCS=crypt.cc
 INCLUDE_DIRS=-I .
+
+vpath %.cc $(sort $(dir $(CXX_SRCS)))
 
 ifeq ($(OS),Windows_NT)
 	SOURCES+=hid-win.c
@@ -19,22 +43,24 @@ else
 		SOURCES+=rs232.c
 		LIBS=`pkg-config libusb-1.0 --libs` -lrt -lpthread
 		INCLUDE_DIRS+=`pkg-config libusb-1.0 --cflags`
-		CFLAGS+=-std=gnu99
 		LDFLAGS+=-no-pie
 		endif
 endif
 
-OBJECTS=$(SOURCES:.c=.o)
+OBJECTS=$(SOURCES:.c=.c.o) $(CXX_SRCS:.cc=.cc.o)
 
 EXECUTABLE = hid-flash
 
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
+	$(CXX) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
 
-.c.o:
-	$(CC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
+%.c.o: %.c
+	$(CC) $(CFLAGS) $(INCLUDE_DIRS) -c "$<" -o "$@"
+
+%.cc.o: %.cc
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c "$<" -o "$@"
 
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLE) $(EXECUTABLE).exe

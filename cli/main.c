@@ -28,17 +28,19 @@
 #include <stdint.h>
 #include "rs232.h"
 #include "hidapi.h"
+#include "crypt.h"
 
 #define SECTOR_SIZE  1024
 #define HID_TX_SIZE    65
 #define HID_RX_SIZE     9
 
-#define VID           0x16C0
-#define PID           0x05DC
+#define VID           ((VID_HI << 8) + VID_LOW)
+#define PID           ((PID_HI << 8) + PID_LOW)
 #define FIRMWARE_VER  0x0300
 
 int serial_init(char *argument, uint8_t __timer);
 
+static uint64_t extended_key[2 * ROUNDS];
 
 static int usb_write(hid_device *device, uint8_t *buffer, int len) {
   int retries = 20;
@@ -60,7 +62,7 @@ static int usb_write(hid_device *device, uint8_t *buffer, int len) {
 }
 
 int main(int argc, char *argv[]) {
-  uint8_t page_data[SECTOR_SIZE];
+  uint64_t page_data[SECTOR_SIZE / 8];
   uint8_t hid_tx_buf[HID_TX_SIZE];
   uint8_t hid_rx_buf[HID_RX_SIZE];
   uint8_t CMD_RESET_PAGES[8] = {'B','T','L','D','C','M','D', 0x00};
@@ -72,7 +74,15 @@ int main(int argc, char *argv[]) {
   uint32_t n_bytes = 0;
   setbuf(stdout, NULL);
   uint8_t _timer = 0;
-  
+
+#if FIRMWARE_KEY1 == 0x0123456789ABCDEF
+#warning Using default firmware key (0x0123456789ABCDEF). Please consider to use your own key for security
+#endif
+  static const uint64_t key[2] = {
+    FIRMWARE_KEY1, FIRMWARE_KEY2
+  };
+  extend_key(extended_key, key);
+
   printf("\n+-----------------------------------------------------------------------+\n");
   printf  ("|         HID-Flash v2.2.1 - STM32 HID Bootloader Flash Tool            |\n");
   printf  ("|     (c)      2018 - Bruno Freitas       http://www.brunofreitas.com   |\n");
@@ -161,11 +171,12 @@ int main(int argc, char *argv[]) {
 
   memset(page_data, 0, sizeof(page_data));
   read_bytes = fread(page_data, 1, sizeof(page_data), firmware_file);
+  encrypt(page_data, page_data, sizeof(page_data), extended_key);
 
   while(read_bytes > 0) {
 
     for(int i = 0; i < SECTOR_SIZE; i += HID_TX_SIZE - 1) {
-      memcpy(&hid_tx_buf[1], page_data + i, HID_TX_SIZE - 1);
+      memcpy(&hid_tx_buf[1], page_data + i / 8, HID_TX_SIZE - 1);
 
       if((i % 1024) == 0){
         printf(".");
@@ -190,6 +201,7 @@ int main(int argc, char *argv[]) {
     
     memset(page_data, 0, sizeof(page_data));
     read_bytes = fread(page_data, 1, sizeof(page_data), firmware_file);
+    encrypt(page_data, page_data, sizeof(page_data), extended_key);
   }
 
   printf("\n> Done!\n");
