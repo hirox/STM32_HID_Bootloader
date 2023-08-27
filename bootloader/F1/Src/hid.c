@@ -342,6 +342,8 @@ void USB_Reset(void)
 
 	/* Clear device address and enable USB function */
 	WRITE_REG(*DADDR, DADDR_EF | 0);
+
+	DeviceAddress = 0;
 }
 
 void USB_EPHandler(uint16_t status)
