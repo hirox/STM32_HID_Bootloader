@@ -203,15 +203,24 @@ void Reset_Handler(void)
 			 */
 			LED2_ON;
 			USB_Shutdown();
-			delay(4000000L);
+
+			// 11ms
+			delay(72 * 1000 * 11);
 		}
 		USB_Init();
-		while (check_flash_complete() == false) {
-			FlashPage();
-		};
+		while (1) {
+			if (CanFlash()) {
+				FlashPage();
+			} else if (check_flash_complete()) {
+				break;
+			}
+		}
 
 		/* Reset the USB */
 		USB_Shutdown();
+
+		// 11ms
+		delay(72 * 1000 * 11);
 
 		/* Reset the STM32 */
 		NVIC_SystemReset();

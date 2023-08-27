@@ -289,9 +289,11 @@ static void HIDUSB_HandleData(uint8_t *data)
 	}
 }
 
-void FlashPage() {
-	if (CurrentPage <= CurrentWritePage) return;
+bool CanFlash() {
+	return (CurrentPage > CurrentWritePage);
+}
 
+void FlashPage() {
 	uint64_t* p = PageData;
 	if ((CurrentWritePage & 0x01) != 0) p += (PAGE_SIZE >> 3);
 	decrypt(p, p, PAGE_SIZE, extended_key);
