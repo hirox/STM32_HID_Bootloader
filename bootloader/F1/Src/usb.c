@@ -117,6 +117,13 @@ void USB_Shutdown(void)
 	CLEAR_BIT(RCC->APB1ENR, RCC_APB1ENR_USBEN);
 }
 
+static void delay(uint32_t timeout)
+{
+	for (uint32_t i = 0; i < timeout; i++) {
+		__NOP();
+	}
+}
+
 void USB_Init(void)
 {
 
@@ -143,8 +150,10 @@ void USB_Init(void)
 	/* Enable USB IRQ in Cortex M3 core */
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
-	/* CNTR_FRES = 1, CNTR_PWDN = 0 */
+	/* CNTR_FRES (Force Reset) = 1, CNTR_PWDN (Power Up) = 0 */
 	WRITE_REG(*CNTR, CNTR_FRES);
+
+	delay(72);
 
 	/* The following sequence is recommended:
 	 * 1- FRES = 0
@@ -152,19 +161,12 @@ void USB_Init(void)
 	 * 3- clear ISTR register
 	 */
 
-	/* CNTR_FRES = 0 */
-	WRITE_REG(*CNTR, 0);
+	/* CNTR_FRES = 0, Set interrupt mask */
+	WRITE_REG(*CNTR, CNTR_MASK);
 
-	/* Wait until RESET flag = 1 (polling) */
-	while (!READ_BIT(*ISTR, ISTR_RESET)) {
+	while (!READ_BIT(*DADDR, DADDR_EF)) {
 		;
 	}
-
-	/* Clear pending interrupts */
-	WRITE_REG(*ISTR, 0);
-
-	/* Set interrupt mask */
-	WRITE_REG(*CNTR, CNTR_MASK);
 }
 
 void USB_LP_CAN1_RX0_IRQHandler(void)
