@@ -26,6 +26,7 @@ extern volatile bool UploadFinished;
 void USB_Reset(void);
 void USB_EPHandler(uint16_t Status);
 
+bool CanFlash(void);
 void FlashPage(void);
 void InitFlashVariables(void);
 
