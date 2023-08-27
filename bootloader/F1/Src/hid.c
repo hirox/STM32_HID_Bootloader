@@ -150,6 +150,8 @@ static const uint8_t USB_ReportDescriptor[] = {
 	0x95, 0x08,		// 	Report Count (8)
 	0x81, 0x02,		// 	Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
 	0x09, 0x03,		// 	Usage (0x03)
+	0x15, 0x00,		// 	Logical Minimum (0)
+	0x25, 0xFF,		// 	Logical Maximum (255)
 	0x75, 0x08,		// 	Report Size (8)
 	0x95, 0x40,		// 	Report Count (64)
 	0x91, 0x02,		// 	Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
@@ -409,6 +411,7 @@ void USB_EPHandler(uint16_t status)
 		}
 		SET_RX_STATUS(endpoint, rx_status);
 	}
+	// IN
 	if (READ_BIT(endpoint_status, EP_CTR_TX)) {
 
 		/* Something transmitted */
