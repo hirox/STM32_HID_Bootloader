@@ -2,7 +2,20 @@ STM32_HID_bootloader
 =============
 
 ## About the Fork
+### Encryption / Decryption
+Add support firmware [Speck](https://en.wikipedia.org/wiki/Speck_(cipher)) encryption/decryption. The size is still **2 KB**. To set encryption key, create configuration.mk to [bootloader/F1/](bootloader/F1/) and [cli/](cli/)
+```
+# VID/PID can also be changed.
+VID_HI  = 0x12
+VID_LOW = 0x34
+PID_HI  = 0x56
+PID_LOW = 0x78
 
+FIRMWARE_KEY1 = 0x9876543210FEDCBA
+FIRMWARE_KEY2 = 0xABCDEF0123456789
+```
+
+### User button
 Add support user button to enter bootloader (currently only F1 series). To customize `button port / pin / pull-up / active_low_or_high` change settings in [bootloader/F1/Inc/config.h](bootloader/F1/Inc/config.h) 
 ```CPP
 // button connected to PA4
@@ -24,10 +37,10 @@ FLASH (rx)  : ORIGIN = 0x08000800, LENGTH = 62K
 ```CPP
 #define VECT_TAB_OFFSET  0x800
 ```
-## Flash user application (use any free COM port number)
+## Flash user application (`sudo` might be necessary)
 ```shell
 cd STM32_HID_Bootloader\cli
-hid-flash "user_app.bin" COM53
+hid-flash "user_app.bin"
 ```
 
 ## Notice
