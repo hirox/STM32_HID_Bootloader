@@ -22,8 +22,8 @@ CXXFLAGS = $(COMMON_FLAGS)
 CXXFLAGS += -std=c++20
 
 LDFLAGS=-lstdc++
-SOURCES=main.c
-CXX_SRCS=crypt.cc
+SOURCES=
+CXX_SRCS=crypt.cc main.cc
 INCLUDE_DIRS=-I .
 
 vpath %.cc $(sort $(dir $(CXX_SRCS)))

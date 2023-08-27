@@ -21,6 +21,9 @@
 *
 */
 
+#include <cstdint>
+#include <optional>
+#include <sstream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,6 +64,41 @@ static int usb_write(hid_device *device, uint8_t *buffer, int len) {
   return 1;
 }
 
+static std::optional<std::uint32_t> get_valid_devices() {
+  struct hid_device_info *devs, *cur_dev;
+  uint8_t valid_hid_devices = 0;
+  
+  for(int i=0;i<10;i++){ //Try up to 10 times to open the HID device.
+    devs = hid_enumerate(VID, PID);
+    cur_dev = devs;
+    while (cur_dev) { //Search for valid HID Bootloader USB devices
+      if((cur_dev->vendor_id == VID)&&(cur_dev->product_id = PID)){
+        valid_hid_devices++;
+        if(cur_dev->release_number < FIRMWARE_VER){ //The STM32 board has firmware lower than 3.00
+          printf("\nError - Please update the firmware to the latest version (v3.00+)");
+          return std::nullopt;
+        }
+      }
+      cur_dev = cur_dev->next;
+    }
+    hid_free_enumeration(devs);
+    printf("#");
+    sleep(1);
+    if(valid_hid_devices > 0) break;
+  }
+  return valid_hid_devices;
+}
+
+static int read_file(uint64_t page_data[SECTOR_SIZE / 8], FILE* in, FILE* out) {
+  memset(page_data, 0, SECTOR_SIZE);
+  size_t read_bytes = fread(page_data, 1, SECTOR_SIZE, in);
+  if (read_bytes > 0) {
+    encrypt(page_data, page_data, SECTOR_SIZE, extended_key);
+    fwrite(page_data, 1, SECTOR_SIZE, out);
+  }
+  return read_bytes;
+}
+
 int main(int argc, char *argv[]) {
   uint64_t page_data[SECTOR_SIZE / 8];
   uint8_t hid_tx_buf[HID_TX_SIZE];
@@ -68,12 +106,13 @@ int main(int argc, char *argv[]) {
   uint8_t CMD_RESET_PAGES[8] = {'B','T','L','D','C','M','D', 0x00};
   uint8_t CMD_REBOOT_MCU[8] = {'B','T','L','D','C','M','D', 0x01};
   hid_device *handle = NULL;
-  size_t read_bytes;
+  FILE *encrypted_file = NULL;
   FILE *firmware_file = NULL;
   int error = 0;
   uint32_t n_bytes = 0;
   setbuf(stdout, NULL);
   uint8_t _timer = 0;
+  std::stringstream ss;
 
 #if FIRMWARE_KEY1 == 0x0123456789ABCDEF
 #warning Using default firmware key (0x0123456789ABCDEF). Please consider to use your own key for security
@@ -115,28 +154,9 @@ int main(int argc, char *argv[]) {
   
   printf("> Searching for [%04X:%04X] device...\n",VID,PID);
   
-  struct hid_device_info *devs, *cur_dev;
-  uint8_t valid_hid_devices = 0;
-  
-  for(int i=0;i<10;i++){ //Try up to 10 times to open the HID device.
-    devs = hid_enumerate(VID, PID);
-    cur_dev = devs;
-    while (cur_dev) { //Search for valid HID Bootloader USB devices
-      if((cur_dev->vendor_id == VID)&&(cur_dev->product_id = PID)){
-        valid_hid_devices++;
-        if(cur_dev->release_number < FIRMWARE_VER){ //The STM32 board has firmware lower than 3.00
-          printf("\nError - Please update the firmware to the latest version (v3.00+)");
-          goto exit;
-        }
-      }
-      cur_dev = cur_dev->next;
-    }
-    hid_free_enumeration(devs);
-    printf("#");
-    sleep(1);
-    if(valid_hid_devices > 0) break;
-  }
-  if (valid_hid_devices == 0){
+  auto valid_hid_devices = get_valid_devices();
+  if (valid_hid_devices == std::nullopt) goto exit;
+  if (*valid_hid_devices == 0){
     printf("\nError - [%04X:%04X] device is not found :(",VID,PID);
     error = 1;
     goto exit;
@@ -169,11 +189,16 @@ int main(int argc, char *argv[]) {
   // Send Firmware File data
   printf("> Flashing firmware...\n");
 
-  memset(page_data, 0, sizeof(page_data));
-  read_bytes = fread(page_data, 1, sizeof(page_data), firmware_file);
-  encrypt(page_data, page_data, sizeof(page_data), extended_key);
+  ss << argv[1] << ".encrypted";
+  encrypted_file = fopen(ss.str().c_str(), "wb");
+  if(!encrypted_file) {
+    printf("> Error opening firmware file: %s\n", ss.str().c_str());
+    goto exit;
+  }
 
-  while(read_bytes > 0) {
+  while(1) {
+    size_t read_bytes = read_file(page_data, firmware_file, encrypted_file);
+    if (read_bytes <= 0) break;
 
     for(int i = 0; i < SECTOR_SIZE; i += HID_TX_SIZE - 1) {
       memcpy(&hid_tx_buf[1], page_data + i / 8, HID_TX_SIZE - 1);
@@ -198,10 +223,6 @@ int main(int argc, char *argv[]) {
       hid_read(handle, hid_rx_buf, 9);
       usleep(500);
     }while(hid_rx_buf[7] != 0x02);
-    
-    memset(page_data, 0, sizeof(page_data));
-    read_bytes = fread(page_data, 1, sizeof(page_data), firmware_file);
-    encrypt(page_data, page_data, sizeof(page_data), extended_key);
   }
 
   printf("\n> Done!\n");
@@ -223,6 +244,10 @@ exit:
   }
 
   hid_exit();
+
+  if(encrypted_file) {
+    fclose(encrypted_file);
+  }
 
   if(firmware_file) {
     fclose(firmware_file);
