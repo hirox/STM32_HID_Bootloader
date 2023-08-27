@@ -33,8 +33,10 @@
 
 typedef struct {
 	uint16_t RXB[MAX_BUFFER_SIZE / 2];
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	uint16_t *TXB;
 	uint8_t TXL;
+#endif
 } USB_RxTxBuf_t;
 
 extern USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
@@ -746,6 +748,9 @@ enum EP_BUF_NUM
 				(SETMASK)) ^ \
 			(TOGGLEMASK)))
 
+// [MEMO]
+// Modify: EPRX_STAT(wStatus), EP_CTR_RX(0)
+// Keep: EP_CTR_TX(rc_w0), EP_DTOG_RX(t), EPTX_STAT(t), EP_DTOG_TX(t)
 #define SET_RX_STATUS(bEpNum, wStatus) \
 	TOGGLE_REG(EP0REG[bEpNum], \
 		   EP_CTR_RX | EP_DTOG_RX | EPTX_STAT | EP_DTOG_TX, \
@@ -759,12 +764,15 @@ enum EP_BUF_NUM
 		   wStatus)
 
 /* Global Variables */
-extern volatile uint8_t DeviceAddress;
 extern volatile uint16_t DeviceConfigured;
 
 /* Function Prototypes */
 uint32_t USB_PMA2Buffer(uint8_t EPn);
-void USB_Buffer2PMA(uint8_t EPn);
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
+void USB_Buffer2PMA(uint8_t endpoint);
+#else
+void USB_Buffer2PMA(uint8_t endpoint, uint16_t* address, uint32_t count);
+#endif
 void USB_SendData(uint8_t EPn, uint16_t *Data, uint16_t Length);
 void USB_Shutdown(void);
 void USB_Init(void);

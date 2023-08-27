@@ -69,11 +69,13 @@
 /* Upload finished flag */
 volatile bool UploadFinished;
 
+static volatile uint8_t DeviceAddress;
+
 /* Sent command (Received command is the same minus last byte) */
 static const uint8_t Command[] = {'B', 'T', 'L', 'D', 'C', 'M', 'D', 2};
 
 /* Flash page buffer */
-static uint8_t PageData[PAGE_SIZE * 2];
+static uint64_t PageData[PAGE_SIZE / 4];
 
 /* Current page number (starts right after bootloader's end) */
 static volatile uint8_t CurrentPage;
@@ -236,28 +238,29 @@ static uint8_t HIDUSB_PacketIsCommand(uint8_t *data)
 			return 0xff;
 		}
  	}
-	for (i++; i < COMMAND_SIZE; i++) {
-		if (data[i]) {
-			return 0xff;
-		}
- 	}
 	return data[sizeof (Command) - 1];
 }
 
 static uint64_t extended_key[2 * ROUNDS];
 
+void InitFlashVariables() {
+	/* Initialize Flash Page Settings */
+	CurrentPage = 0;
+	CurrentWritePage = 0;
+	CurrentPageOffset = 0;
+}
+
 static void HIDUSB_HandleData(uint8_t *data)
 {
-	memcpy(PageData + CurrentPageOffset + ((CurrentPage & 1) ? PAGE_SIZE : 0),
-			data, MAX_PACKET_SIZE);
+	uint64_t* p = PageData;
+	if ((CurrentPage & 0x01) != 0) p += (PAGE_SIZE >> 3);
+	memcpy(p + (CurrentPageOffset >> 3), data, MAX_PACKET_SIZE);
 	CurrentPageOffset += MAX_PACKET_SIZE;
 	if (CurrentPageOffset == COMMAND_SIZE) {
 		switch (HIDUSB_PacketIsCommand(data)) {
 			case 0x00:
 				/* Reset Page Command */
-				CurrentPage = 0;
-				CurrentWritePage = 0;
-				CurrentPageOffset = 0;
+				InitFlashVariables();
 
 #if FIRMWARE_KEY1 == 0x0123456789ABCDEF
 #warning Using default firmware key (0x0123456789ABCDEF). Please consider to use your own key for security
@@ -281,7 +284,7 @@ static void HIDUSB_HandleData(uint8_t *data)
 		CurrentPageOffset = 0;
 	}
 
-	if((CurrentPageOffset == 0) || (CurrentPageOffset == 1024)){
+	if((CurrentPageOffset == 0) /*|| (CurrentPageOffset == 1024)*/){
 		USB_SendData(ENDP1, (uint16_t *)Command, sizeof (Command));
 	}
 }
@@ -289,8 +292,8 @@ static void HIDUSB_HandleData(uint8_t *data)
 void FlashPage() {
 	if (CurrentPage <= CurrentWritePage) return;
 
-	uint8_t* p = PageData;
-	if ((CurrentWritePage & 0x01) != 0) p += PAGE_SIZE;
+	uint64_t* p = PageData;
+	if ((CurrentWritePage & 0x01) != 0) p += (PAGE_SIZE >> 3);
 	decrypt(p, p, PAGE_SIZE, extended_key);
 	//LED1_ON;
 	uint16_t* page_address = (uint16_t *)(FLASH_BASE_ADDRESS + MIN_PAGE * PAGE_SIZE + (CurrentWritePage * PAGE_SIZE));
@@ -303,17 +306,11 @@ void FlashPage() {
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 }
 
-void InitFlashVariables() {
-	/* Initialize Flash Page Settings */
-	CurrentPage = 0;
-	CurrentWritePage = 0;
-	CurrentPageOffset = 0;
-}
-
 void USB_Reset(void)
 {
 	/* Set buffer descriptor table offset in PMA memory */
-	WRITE_REG(*BTABLE, BTABLE_OFFSET);
+	// [MEMO] We don't change BTABLE
+	//WRITE_REG(*BTABLE, BTABLE_OFFSET);
 
 	/* Initialize Endpoint 0 */
 	TOGGLE_REG(EP0REG[ENDP0],
@@ -347,21 +344,22 @@ void USB_EPHandler(uint16_t status)
 {
 	uint8_t endpoint = READ_BIT(status, USB_ISTR_EP_ID);
 	uint16_t endpoint_status = EP0REG[endpoint];
-	USB_SetupPacket *setup_packet;
 
 	/* OUT and SETUP packets (data reception) */
 	if (READ_BIT(endpoint_status, EP_CTR_RX)) {
-		bool rx_valid = true;
+		uint16_t rx_status = EP_RX_VALID;
 		if (endpoint == 0) {
 			/* Copy from packet area to user buffer */
 			uint32_t rx_length = USB_PMA2Buffer(endpoint);
 
 			/* If control endpoint */
 			if (READ_BIT(endpoint_status, USB_EP0R_SETUP)) {
-				setup_packet = (USB_SetupPacket *) RxTxBuffer[endpoint].RXB;
+				USB_SetupPacket *setup_packet = (USB_SetupPacket *) RxTxBuffer[endpoint].RXB;
 				// Class request
 				if ((setup_packet->bmRequestType & 0x60) == 0x20) {
-					if (CurrentPage >= CurrentWritePage + 2) rx_valid = false;
+					if (CurrentPage >= CurrentWritePage + 2) {
+						rx_status = EP_RX_NAK;
+					}
 					USB_SendData(0, 0, 0);
 				} else {
 					switch (setup_packet->bRequest) {
@@ -407,7 +405,7 @@ void USB_EPHandler(uint16_t status)
 			}
 
 		}
-		if (rx_valid) SET_RX_STATUS(endpoint, EP_RX_VALID);
+		SET_RX_STATUS(endpoint, rx_status);
 	}
 	if (READ_BIT(endpoint_status, EP_CTR_TX)) {
 

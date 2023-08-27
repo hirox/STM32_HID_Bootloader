@@ -33,7 +33,6 @@
 
 USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
 
-volatile uint8_t DeviceAddress;
 volatile uint16_t DeviceConfigured;
 
 uint32_t USB_PMA2Buffer(uint8_t endpoint)
@@ -49,15 +48,12 @@ uint32_t USB_PMA2Buffer(uint8_t endpoint)
 	return count;
 }
 
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 void USB_Buffer2PMA(uint8_t endpoint)
 {
 	volatile uint32_t *btable = BTABLE_ADDR_FROM_OFFSET(endpoint, 0);
-#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	uint32_t count = RxTxBuffer[endpoint].TXL <= MAX_PACKET_SIZE ?
 		RxTxBuffer[endpoint].TXL : MAX_PACKET_SIZE;
-#else
-	uint32_t count = RxTxBuffer[endpoint].TXL;
-#endif
 	uint16_t *address = RxTxBuffer[endpoint].TXB;
 	uint32_t *destination = (uint32_t *) (PMAAddr + btable[USB_ADDRn_TX] * 2);
 
@@ -66,11 +62,22 @@ void USB_Buffer2PMA(uint8_t endpoint)
 	for (uint32_t i = (count + 1) / 2; i; i--) {
 		*destination++ = *address++;
 	}
-#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	RxTxBuffer[endpoint].TXL -= count;
 	RxTxBuffer[endpoint].TXB = address;
-#endif
 }
+#else
+void USB_Buffer2PMA(uint8_t endpoint, uint16_t* address, uint32_t count)
+{
+	volatile uint32_t *btable = BTABLE_ADDR_FROM_OFFSET(endpoint, 0);
+	uint32_t *destination = (uint32_t *) (PMAAddr + btable[USB_ADDRn_TX] * 2);
+
+	/* Set transmission byte count in buffer descriptor table */
+	btable[USB_COUNTn_TX] = count;
+	for (uint32_t i = (count + 1) / 2; i; i--) {
+		*destination++ = *address++;
+	}
+}
+#endif
 
 // Maximum length is 64bytes
 void USB_SendData(uint8_t endpoint, uint16_t *data, uint16_t length)
@@ -78,9 +85,13 @@ void USB_SendData(uint8_t endpoint, uint16_t *data, uint16_t length)
 	if (endpoint > 0 && !DeviceConfigured) {
 		return;
 	}
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	RxTxBuffer[endpoint].TXL = length;
 	RxTxBuffer[endpoint].TXB = data;
 	USB_Buffer2PMA(endpoint);
+#else
+	USB_Buffer2PMA(endpoint, data, length);
+#endif
 	SET_TX_STATUS(endpoint, EP_TX_VALID);
 }
 
@@ -95,7 +106,6 @@ void USB_Shutdown(void)
 	WRITE_REG(*CNTR, CNTR_FRES | CNTR_PDWN);
 
 	/* PA12: General purpose output 50 MHz open drain */
-	SET_BIT(RCC->APB2ENR, RCC_APB2ENR_IOPAEN);
 	MODIFY_REG(GPIOA->CRH,
 		GPIO_CRH_CNF12 | GPIO_CRH_MODE12,
 		GPIO_CRH_CNF12_0 | GPIO_CRH_MODE12);
@@ -110,17 +120,16 @@ void USB_Shutdown(void)
 void USB_Init(void)
 {
 
+#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 	/* Reset RX and TX lengths inside RxTxBuffer struct for all
 	 * endpoints
 	 */
 	for (int i = 0; i < MAX_EP_NUM; i++) {
-#if defined(SUPPORT_OVER_64_BYTES_TRANSMISSION)
 		RxTxBuffer[i].TXL = 0;
-#endif
 	}
+#endif
 
 	/* PA12: General purpose Input Float */
-	SET_BIT(RCC->APB2ENR, RCC_APB2ENR_IOPAEN);
 	MODIFY_REG(GPIOA->CRH,
 		GPIO_CRH_CNF12 | GPIO_CRH_MODE12,
 		GPIO_CRH_CNF12_0);
@@ -167,7 +176,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 		/* Handle EP data */
 		if (READ_BIT(istr, ISTR_CTR)) {
 			/* Handle data on EP */
-			WRITE_REG(*ISTR, CLR_CTR);
 			USB_EPHandler(READ_REG(*ISTR));
 		}
 
