@@ -56,3 +56,9 @@ Temporary Items
 *.lst
 *.map
 *.size
+
+# =========================
+# Local configuration
+# =========================
+
+configuration.mk
