@@ -194,40 +194,27 @@ void Reset_Handler(void)
 	if ((magic_word == 0x424C) ||
 		USER_BTN_PRESS ||
 		(check_user_code(USER_PROGRAM) == false)) {
-		if (magic_word == 0x424C) {
 
-			/* If a magic word was stored in the
-			 * battery-backed RAM registers from the
-			 * Arduino IDE, exit from USB Serial mode and
-			 * go to HID mode...
-			 */
+		while (1) {
 			LED2_ON;
 			USB_Shutdown();
 
 			// 11ms
 			delay(72 * 1000 * 11);
-		}
-		USB_Init();
-		while (1) {
-			if (CanFlash()) {
-				FlashPage();
-			} else if (check_flash_complete()) {
-				break;
+
+			if (check_flash_complete()) {
+				/* Reset the STM32 */
+				NVIC_SystemReset();
 			}
-		}
 
-		/* Reset the USB */
-		USB_Shutdown();
-
-		// 11ms
-		delay(72 * 1000 * 11);
-
-		/* Reset the STM32 */
-		NVIC_SystemReset();
-
-		/* Never reached */
-		for (;;) {
-			;
+			USB_Init();
+			while (1) {
+				if (CanFlash()) {
+					FlashPage();
+				} else if (check_flash_complete()) {
+					break;
+				}
+			}
 		}
 	}
 	LED2_ON;
