@@ -166,9 +166,9 @@ static const uint8_t USB_LangIDStringDescriptor[] = {
 };
 
 static const uint8_t USB_VendorStringDescriptor[] = {
-	0x12,			// bLength
+	0x0A,			// bLength
 	0x03,			// bDescriptorType (String)
-	'E', 0, 'V', 0, 'T', 0, '1', 0, '.', 0, 'C', 0, 'O', 0, 'M', 0
+	'E', 0, 'V', 0, 'T', 0, '1', 0
 };
 
 static const uint8_t USB_ProductStringDescriptor[] = {
