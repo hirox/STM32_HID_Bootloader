@@ -225,6 +225,7 @@ static void HIDUSB_GetDescriptor(USB_SetupPacket *setup_packet)
 	default:
 		break;
 	}
+
 	if (length > setup_packet->wLength) {
 		length = setup_packet->wLength;
 	}
@@ -271,7 +272,7 @@ static void HIDUSB_HandleData(uint8_t *data)
 					FIRMWARE_KEY1, FIRMWARE_KEY2
 				};
 				extend_key(extended_key, key);
-				set_iv((uint64_t*)data + sizeof(Command));
+				set_iv((uint64_t*)(data + sizeof(Command)));
 			break;
 
 			case 0x01:
@@ -419,7 +420,6 @@ void USB_EPHandler(uint16_t status)
 
 		/* Something transmitted */
 		if (DeviceAddress) {
-
 			/* Set device address and enable function */
 			WRITE_REG(*DADDR, DADDR_EF | DeviceAddress);
 			DeviceAddress = 0;

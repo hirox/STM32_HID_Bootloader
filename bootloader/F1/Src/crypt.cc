@@ -6,7 +6,9 @@
 
 #include "crypt.h"
 
-static std::uint64_t iv[2];
+static volatile std::uint64_t iv[2];
+
+//#define CRYPT_DEBUG
 
 #if defined(CRYPT_DEBUG)
 static void dump_key(const std::uint64_t extended_key[2 * ROUNDS]) {
@@ -14,6 +16,13 @@ static void dump_key(const std::uint64_t extended_key[2 * ROUNDS]) {
     for (auto x = 0; x < 2 * ROUNDS; x++) {
         printf("0x%08llx ", extended_key[x]);
     }
+    printf("\n");
+}
+
+static void dump_iv() {
+    printf("IV: ");
+    printf("0x%08llx ", iv[0]);
+    printf("0x%08llx ", iv[1]);
     printf("\n");
 }
 
@@ -48,6 +57,8 @@ static void decrypt_internal(
         const std::uint64_t K[ROUNDS * 2]) {
     std::uint64_t y = ct[0];
     std::uint64_t x = ct[1];
+    std::uint64_t y2 = y;
+    std::uint64_t x2 = x;
 
     for (std::int32_t i = ROUNDS - 1; i >= 0; i--) {
         speck128_invround(&x, &y, K[i * 2 + 1]);
@@ -56,8 +67,8 @@ static void decrypt_internal(
     pt[0] = y ^ iv[0];
     pt[1] = x ^ iv[1];
 
-    iv[0] = ct[0];
-    iv[1] = ct[1];
+    iv[0] = y2;
+    iv[1] = x2;
 }
 
 static void encrypt_internal(
@@ -66,7 +77,7 @@ static void encrypt_internal(
         const std::uint64_t K[2])   // extended key
 {
     std::uint64_t y = pt[0] ^ iv[0];
-    std::uint64_t x = pt[1] ^ iv[0];
+    std::uint64_t x = pt[1] ^ iv[1];
 
     for (std::int32_t i = 0; i < ROUNDS; i++) {
         speck128_round(&x, &y, K[i * 2 + 1]);
@@ -99,6 +110,7 @@ void encrypt(std::uint64_t* out, const std::uint64_t* in,
              const std::uint32_t bytes, const std::uint64_t extended_key[2 * ROUNDS]) {
 #if defined(CRYPT_DEBUG)
     dump_key(extended_key);
+    dump_iv();
     dump_data("Plain", in);
 #endif
 
@@ -119,6 +131,7 @@ void encrypt(std::uint64_t* out, const std::uint64_t* in,
 void decrypt(std::uint64_t* out, const std::uint64_t* in,
              const std::uint32_t bytes, const std::uint64_t extended_key[2 * ROUNDS]) {
 #if defined(CRYPT_DEBUG)
+    dump_iv();
     dump_data("Crypt", in);
 #endif
 
