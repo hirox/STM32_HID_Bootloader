@@ -28,8 +28,8 @@
 #include "usb.h"
 #include "hid.h"
 
-#define CNTR_MASK	(CNTR_RESETM | CNTR_SUSPM | CNTR_WKUPM)
-#define ISTR_MASK	(ISTR_CTR | ISTR_RESET | ISTR_SUSP | ISTR_WKUP)
+#define CNTR_MASK	(CNTR_RESETM)
+#define ISTR_MASK	(ISTR_CTR | ISTR_RESET)
 
 USB_RxTxBuf_t RxTxBuffer[MAX_EP_NUM];
 
@@ -185,22 +185,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 		if (READ_BIT(istr, ISTR_RESET)) {
 			WRITE_REG(*ISTR, CLR_RESET);
 			USB_Reset();
-		}
-
-		/* Handle Suspend */
-		if (READ_BIT(istr, ISTR_SUSP)) {
-			WRITE_REG(*ISTR, CLR_SUSP);
-
-			/* If device address is assigned, then reset it */
-			if (READ_REG(*DADDR) & USB_DADDR_ADD) {
-				WRITE_REG(*DADDR, 0);
-				CLEAR_BIT(*CNTR, CNTR_SUSPM);
-			}
-		}
-
-		/* Handle Wakeup */
-		if (READ_BIT(istr, ISTR_WKUP)) {
-			WRITE_REG(*ISTR, CLR_WKUP);
 		}
 	}
 
