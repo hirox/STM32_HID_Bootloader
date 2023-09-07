@@ -114,7 +114,7 @@ void USB_Shutdown(void)
 	WRITE_REG(GPIOA->BRR, GPIO_BRR_BR12);
 
 	/* Disable USB Clock on APB1 */
-	CLEAR_BIT(RCC->APB1ENR, RCC_APB1ENR_USBEN);
+	//CLEAR_BIT(RCC->APB1ENR, RCC_APB1ENR_USBEN);
 }
 
 static void delay(uint32_t timeout)
