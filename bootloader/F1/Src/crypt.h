@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+void set_iv(const uint64_t iv[2]);
+
 void extend_key(uint64_t kb[2 * ROUNDS], 
 	 	        const uint64_t K[2]);
 

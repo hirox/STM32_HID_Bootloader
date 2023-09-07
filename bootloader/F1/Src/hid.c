@@ -271,6 +271,7 @@ static void HIDUSB_HandleData(uint8_t *data)
 					FIRMWARE_KEY1, FIRMWARE_KEY2
 				};
 				extend_key(extended_key, key);
+				set_iv((uint64_t*)data + sizeof(Command));
 			break;
 
 			case 0x01:
