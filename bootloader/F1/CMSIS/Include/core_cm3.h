@@ -1561,7 +1561,7 @@ __STATIC_INLINE void NVIC_SystemReset(void)
                            (SCB->AIRCR & SCB_AIRCR_PRIGROUP_Msk) |
                             SCB_AIRCR_SYSRESETREQ_Msk    );         /* Keep priority group unchanged */
   __DSB();                                                          /* Ensure completion of memory access */
-  while(1) { __NOP(); }                                             /* wait until reset */
+  while(1) { }                                             /* wait until reset */
 }
 
 /*@} end of CMSIS_Core_NVICFunctions */
