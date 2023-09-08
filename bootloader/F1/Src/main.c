@@ -60,7 +60,7 @@ typedef void (*funct_ptr)(void);
 void Reset_Handler(void);
 
 /* Minimal initial Flash-based vector table */
-const uint32_t *VectorTable[] __attribute__((section(".isr_vector"), used)) = {
+const uint32_t * const VectorTable[] __attribute__((section(".isr_vector"), used)) = {
 
 	/* Initial stack pointer (MSP) */
 	(uint32_t *) SRAM_END,
@@ -78,10 +78,7 @@ static void delay(uint32_t timeout)
 
 static bool check_flash_complete(void)
 {
-	if (UploadFinished == true) {
-		return true;
-	}
-	return false;
+	return (UploadFinished == true);
 }
 
 static bool check_user_code(uint32_t user_address)
@@ -93,6 +90,7 @@ static bool check_user_code(uint32_t user_address)
 	return ((sp & 0x2FFE0000) == SRAM_BASE) ? true : false;
 }
 
+/* Check for a magic word in BACKUP memory */
 static uint16_t get_and_clear_magic_word(void)
 {
 
@@ -171,9 +169,6 @@ void Reset_Handler(void)
 		(uint32_t) USB_LP_CAN1_RX0_IRQHandler;
 	WRITE_REG(SCB->VTOR, (volatile uint32_t) ram_vectors);
 
-	/* Check for a magic word in BACKUP memory */
-	uint16_t magic_word = get_and_clear_magic_word();
-
 	/* Initialize GPIOs */
 	pins_init();
 
@@ -191,7 +186,8 @@ void Reset_Handler(void)
 	 *    registers from the Arduino IDE
 	 * then enter HID bootloader...
 	 */
-	if ((magic_word == 0x424C) ||
+	if (ram_vectors[2] == 0x424CF7 ||
+		/*(get_and_clear_magic_word() == 0x424C) ||*/
 		USER_BTN_PRESS ||
 		(check_user_code(USER_PROGRAM) == false)) {
 
