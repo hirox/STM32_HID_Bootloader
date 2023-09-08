@@ -298,6 +298,9 @@ bool CanFlash() {
 }
 
 void FlashPage() {
+	// [MEMO] Protect bootloader page for invalid update sequence
+	if (CurrentWritePage >= (128 - MIN_PAGE)) return;
+
 	uint64_t* p = PageData;
 	if ((CurrentWritePage & 0x01) != 0) p += (PAGE_SIZE >> 3);
 	decrypt(p, p, PAGE_SIZE, extended_key);
@@ -348,10 +351,32 @@ void USB_Reset(void)
 	DeviceAddress = 0;
 }
 
+#if 0
+volatile uint16_t YYYY;
+extern volatile uint16_t XXXX;
+
+volatile struct {
+	uint16_t EP;
+	uint16_t EPA;
+	uint16_t CNT;
+	uint16_t IS;
+	uint16_t FN;
+	uint16_t DAD;
+	uint16_t XX;
+} ZZ[100];
+#endif
+
 void USB_EPHandler(uint16_t status)
 {
 	uint8_t endpoint = READ_BIT(status, USB_ISTR_EP_ID);
 	uint16_t endpoint_status = EP0REG[endpoint];
+
+#if 0
+	if (endpoint == 0) {
+		ZZ[YYYY].EP = endpoint_status;
+		ZZ[YYYY].XX = XXXX;
+	}
+#endif
 
 	/* OUT and SETUP packets (data reception) */
 	if (READ_BIT(endpoint_status, EP_CTR_RX)) {
@@ -429,4 +454,15 @@ void USB_EPHandler(uint16_t status)
 #endif
 		SET_TX_STATUS(endpoint, (endpoint == ENDP1) ? EP_TX_NAK : EP_TX_VALID);
 	}
+
+#if 0
+	if (endpoint == 0) {
+		ZZ[YYYY].EPA = EP0REG[endpoint];
+		ZZ[YYYY].CNT = *CNTR;
+		ZZ[YYYY].IS = *ISTR;
+		ZZ[YYYY].FN = *FNR;
+		ZZ[YYYY].DAD = *DADDR;
+		YYYY++;
+	}
+#endif
 }
