@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <optional>
 #include <sstream>
+#include <random>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,6 +45,7 @@
 int serial_init(char *argument, uint8_t __timer);
 
 static uint64_t extended_key[2 * ROUNDS];
+static std::uint64_t iv[2];
 
 static int usb_write(hid_device *device, uint8_t *buffer, int len) {
   int retries = 20;
@@ -93,6 +95,19 @@ static int read_file(uint64_t page_data[SECTOR_SIZE / 8], FILE* in, FILE* out) {
   memset(page_data, 0, SECTOR_SIZE);
   size_t read_bytes = fread(page_data, 1, SECTOR_SIZE, in);
   if (read_bytes > 0) {
+#if 0
+    uint64_t tmp[SECTOR_SIZE / 8];
+    uint64_t tmp_iv[2] = {iv[0], iv[1]};
+    set_iv(tmp_iv);
+    encrypt(tmp, page_data, SECTOR_SIZE, extended_key);
+    set_iv(tmp_iv);
+    decrypt(tmp, tmp, SECTOR_SIZE, extended_key);
+    if (memcmp(tmp, page_data, SECTOR_SIZE) != 0) {
+      printf("Enc/Dec error");
+      return 0;
+    }
+#endif
+
     encrypt(page_data, page_data, SECTOR_SIZE, extended_key);
     fwrite(page_data, 1, SECTOR_SIZE, out);
   }
@@ -153,7 +168,12 @@ int main(int argc, char *argv[]) {
   hid_init();
   
   printf("> Searching for [%04X:%04X] device...\n",VID,PID);
-  
+
+  std::random_device seed_gen;
+  std::mt19937_64 engine(seed_gen());
+  iv[0] = engine();
+  iv[1] = engine();
+
   auto valid_hid_devices = get_valid_devices();
   if (valid_hid_devices == std::nullopt) goto exit;
   if (*valid_hid_devices == 0){
@@ -176,6 +196,10 @@ int main(int argc, char *argv[]) {
   memset(hid_tx_buf, 0, sizeof(hid_tx_buf)); //Fill the hid_tx_buf with zeros.
   memcpy(&hid_tx_buf[1], CMD_RESET_PAGES, sizeof(CMD_RESET_PAGES));
 
+  set_iv(iv);
+  *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8]) = iv[0];
+  *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8 + 8]) = iv[1];
+
   printf("> Sending <reset pages> command...\n");
 
   // Flash is unavailable when writing to it, so USB interrupt may fail here
@@ -195,6 +219,7 @@ int main(int argc, char *argv[]) {
     printf("> Error opening firmware file: %s\n", ss.str().c_str());
     goto exit;
   }
+  fwrite(iv, 1, 16, encrypted_file);
 
   while(1) {
     size_t read_bytes = read_file(page_data, firmware_file, encrypted_file);
