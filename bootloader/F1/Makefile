@@ -39,7 +39,7 @@ FIRMWARE_KEY2 = 0xFEDCBA9876543210
 -include configuration.mk
 
 COMMON_FLAGS += -mcpu=cortex-m3 -mthumb -Wall -Os -flto
-COMMON_FLAGS += -fno-common -static
+COMMON_FLAGS += -fno-common -static #-ffunction-sections -fdata-sections
 COMMON_FLAGS += -specs=nano.specs -specs=nosys.specs
 COMMON_FLAGS += -Wextra -Wshadow -Wno-unused-variable
 COMMON_FLAGS += -Wredundant-decls

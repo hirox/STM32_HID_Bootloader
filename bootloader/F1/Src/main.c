@@ -191,6 +191,9 @@ void Reset_Handler(void)
 		USER_BTN_PRESS ||
 		(check_user_code(USER_PROGRAM) == false)) {
 
+		// clear magic
+		ram_vectors[2] = 0;
+
 		while (1) {
 			LED2_ON;
 			USB_Shutdown();
