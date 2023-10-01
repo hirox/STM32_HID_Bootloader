@@ -30,7 +30,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
-#include "rs232.h"
 #include "hidapi.h"
 #include "crypt.h"
 
@@ -41,8 +40,6 @@
 #define VID           ((VID_HI << 8) + VID_LOW)
 #define PID           ((PID_HI << 8) + PID_LOW)
 #define FIRMWARE_VER  0x0300
-
-int serial_init(char *argument, uint8_t __timer);
 
 static uint64_t extended_key[2 * ROUNDS];
 static std::uint64_t iv[2];
@@ -126,7 +123,7 @@ int main(int argc, char *argv[]) {
   int error = 0;
   uint32_t n_bytes = 0;
   setbuf(stdout, NULL);
-  uint8_t _timer = 0;
+  bool encryption_only = false;
   std::stringstream ss;
 
 #if FIRMWARE_KEY1 == 0x0123456789ABCDEF
@@ -145,10 +142,10 @@ int main(int argc, char *argv[]) {
   printf  ("+-----------------------------------------------------------------------+\n\n");
   
   if(argc <= 1) {
-    printf("Usage: hid-flash <bin_firmware_file> <comport> <delay (optional)>\n");
+    printf("Usage: hid-flash <bin_firmware_file> <bool: encryption only>\n");
     return 1;
-  }else if(argc == 4){
-    _timer = atol(argv[3]);
+  }else if (argc >= 3) {
+    encryption_only = true;
   }
   
   firmware_file = fopen(argv[1], "rb");
@@ -157,61 +154,56 @@ int main(int argc, char *argv[]) {
     return error;
   }
   
-  if (argc >= 3) {
-    if(serial_init(argv[2], _timer) == 0){ //Setting up Serial port
-      RS232_CloseComport();
-    }else{
-      printf("> Unable to open the [%s]\n",argv[2]);
-    }
-  }
-  
-  hid_init();
-  
-  printf("> Searching for [%04X:%04X] device...\n",VID,PID);
-
   std::random_device seed_gen;
   std::mt19937_64 engine(seed_gen());
   iv[0] = engine();
   iv[1] = engine();
-
-  auto valid_hid_devices = get_valid_devices();
-  if (valid_hid_devices == std::nullopt) goto exit;
-  if (*valid_hid_devices == 0){
-    printf("\nError - [%04X:%04X] device is not found :(",VID,PID);
-    error = 1;
-    goto exit;
-  } 
-  
-  handle = hid_open(VID, PID, NULL);
-  
-  if (handle == NULL) {
-    printf("\n> Unable to open the [%04X:%04X] device.\n",VID,PID);
-    error = 1;
-    goto exit;
-  }
- 
-  printf("\n> Opened device [%04X:%04X]\n",VID,PID);
-  
-  // Send RESET PAGES command to put HID bootloader in initial stage...
-  memset(hid_tx_buf, 0, sizeof(hid_tx_buf)); //Fill the hid_tx_buf with zeros.
-  memcpy(&hid_tx_buf[1], CMD_RESET_PAGES, sizeof(CMD_RESET_PAGES));
-
   set_iv(iv);
-  *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8]) = iv[0];
-  *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8 + 8]) = iv[1];
 
-  printf("> Sending <reset pages> command...\n");
+  if (!encryption_only) {
+    hid_init();
+    printf("> Searching for [%04X:%04X] device...\n",VID,PID);
 
-  // Flash is unavailable when writing to it, so USB interrupt may fail here
-  if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
-    printf("> Error while sending <reset pages> command.\n");
-    error = 1;
-    goto exit;
+    auto valid_hid_devices = get_valid_devices();
+    if (valid_hid_devices == std::nullopt) goto exit;
+    if (*valid_hid_devices == 0){
+      printf("\nError - [%04X:%04X] device is not found :(",VID,PID);
+      error = 1;
+      goto exit;
+    } 
+  
+    handle = hid_open(VID, PID, NULL);
+    
+    if (handle == NULL) {
+      printf("\n> Unable to open the [%04X:%04X] device.\n",VID,PID);
+      error = 1;
+      goto exit;
+    }
+  
+    printf("\n> Opened device [%04X:%04X]\n",VID,PID);
+  
+    // Send RESET PAGES command to put HID bootloader in initial stage...
+    memset(hid_tx_buf, 0, sizeof(hid_tx_buf)); //Fill the hid_tx_buf with zeros.
+    memcpy(&hid_tx_buf[1], CMD_RESET_PAGES, sizeof(CMD_RESET_PAGES));
+
+    *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8]) = iv[0];
+    *reinterpret_cast<std::uint64_t*>(&hid_tx_buf[1 + 8 + 8]) = iv[1];
+
+    printf("> Sending <reset pages> command...\n");
+
+    // Flash is unavailable when writing to it, so USB interrupt may fail here
+    if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
+      printf("> Error while sending <reset pages> command.\n");
+      error = 1;
+      goto exit;
+    }
+    memset(hid_tx_buf, 0, sizeof(hid_tx_buf));
+
+    // Send Firmware File data
+    printf("> Flashing firmware...\n");
+  } else {
+    printf("> Opening firmware...\n");
   }
-  memset(hid_tx_buf, 0, sizeof(hid_tx_buf));
-
-  // Send Firmware File data
-  printf("> Flashing firmware...\n");
 
   ss << argv[1] << ".encrypted";
   encrypted_file = fopen(ss.str().c_str(), "wb");
@@ -228,47 +220,55 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < SECTOR_SIZE; i += HID_TX_SIZE - 1) {
       memcpy(&hid_tx_buf[1], page_data + i / 8, HID_TX_SIZE - 1);
 
-      if((i % 1024) == 0){
-        printf(".");
-      }
-      
-      // Flash is unavailable when writing to it, so USB interrupt may fail here
-      if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
-        printf("> Error while flashing firmware data.\n");
-        error = 1;
-        goto exit;
+      if (!encryption_only) {
+        if((i % 1024) == 0)
+          printf(".");
+
+        // Flash is unavailable when writing to it, so USB interrupt may fail here
+        if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
+          printf("> Error while flashing firmware data.\n");
+          error = 1;
+          goto exit;
+        }
+        usleep(500);
       }
       n_bytes += (HID_TX_SIZE - 1);
-      usleep(500);
     }
-    
-    printf(" %d Bytes\n", n_bytes);
 
-    do{
-      hid_read(handle, hid_rx_buf, 9);
-      usleep(500);
-    }while(hid_rx_buf[7] != 0x02);
+    if (!encryption_only)
+      printf(" %d Bytes\n", n_bytes);
+
+    if (!encryption_only) {
+      do{
+          hid_read(handle, hid_rx_buf, 9);
+          usleep(500);
+      } while(hid_rx_buf[7] != 0x02);
+    }
   }
 
-  printf("\n> Done!\n");
+  printf("\n> Done! %d Bytes\n", n_bytes);
   
-  // Send CMD_REBOOT_MCU command to reboot the microcontroller...
-  memset(hid_tx_buf, 0, sizeof(hid_tx_buf));
-  memcpy(&hid_tx_buf[1], CMD_REBOOT_MCU, sizeof(CMD_REBOOT_MCU));
+  if (!encryption_only) {
+    // Send CMD_REBOOT_MCU command to reboot the microcontroller...
+    memset(hid_tx_buf, 0, sizeof(hid_tx_buf));
+    memcpy(&hid_tx_buf[1], CMD_REBOOT_MCU, sizeof(CMD_REBOOT_MCU));
 
-  printf("> Sending <reboot mcu> command...\n");
+    printf("> Sending <reboot mcu> command...\n");
 
-  // Flash is unavailable when writing to it, so USB interrupt may fail here
-  if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
-    printf("> Error while sending <reboot mcu> command.\n");
+    // Flash is unavailable when writing to it, so USB interrupt may fail here
+    if(!usb_write(handle, hid_tx_buf, HID_TX_SIZE)) {
+      printf("> Error while sending <reboot mcu> command.\n");
+    }
   }
   
 exit:
-  if(handle) {
-    hid_close(handle);
-  }
+  if (!encryption_only) {
+    if(handle) {
+      hid_close(handle);
+    }
 
-  hid_exit();
+    hid_exit();
+  }
 
   if(encrypted_file) {
     fclose(encrypted_file);
@@ -278,51 +278,7 @@ exit:
     fclose(firmware_file);
   }
 
-  if (argc >= 3) {
-    printf("> Searching for [%s] ...\n",argv[2]);
-
-    for(int i=0;i<5;i++){
-      if(RS232_OpenComport(argv[2]) == 0){
-        printf("> [%s] is found !\n",argv[2] );
-        break;
-      }
-      sleep(1);
-
-      if(i==4){
-        printf("> Comport is not found\n");
-      }
-    }
-  }
-  
   printf("> Finish\n");
   
   return error;
-}
-
-int serial_init(char *argument, uint8_t __timer) {
-
-  printf("> Trying to open the [%s]...\n",argument);
-  if(RS232_OpenComport(argument)){
-    return(1);
-  }
-  printf("> Toggling DTR...\n");
-  
-  RS232_disableRTS();
-  RS232_enableDTR();
-  usleep(200000L);
-  RS232_disableDTR();
-  usleep(200000L);
-  RS232_enableDTR();
-  usleep(200000L);
-  RS232_disableDTR();
-  usleep(200000L);
-  RS232_send_magic();
-  usleep(200000L);
-  RS232_CloseComport();
-  
-  //printf("A %i\n",__timer);
-  if (__timer > 0) {
-    usleep(__timer);
-  }
-  return 0;
 }
